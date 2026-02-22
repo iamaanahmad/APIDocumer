@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Free Fire Community API - Unofficial Free Fire Player Stats & Data API
+  title: Free Fire API - Free Fire Player Stats & Data API
   version: '2.0'
   description: |
     # Free Fire Community API Documentation

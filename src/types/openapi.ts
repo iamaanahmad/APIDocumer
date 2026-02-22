@@ -5,12 +5,19 @@ export interface OpenAPISpec {
   tags?: TagObject[];
   paths: PathsObject;
   components?: ComponentsObject;
+  security?: SecurityRequirementObject[];
+  externalDocs?: ExternalDocumentationObject;
 }
 
 export interface InfoObject {
   title: string;
   version: string;
   description?: string;
+  'x-logo'?: {
+    url: string;
+    altText?: string;
+  };
+  'x-keywords'?: string[];
 }
 
 export interface ServerObject {
@@ -48,6 +55,11 @@ export interface OperationObject {
   parameters?: (ParameterObject | ReferenceObject)[];
   requestBody?: RequestBodyObject | ReferenceObject;
   responses: ResponsesObject;
+  security?: SecurityRequirementObject[];
+  'x-code-samples'?: Array<{
+    lang: string;
+    source: string;
+  }>;
 }
 
 export interface ParameterObject {
@@ -95,6 +107,15 @@ export interface ReferenceObject {
 
 export interface ComponentsObject {
   schemas?: { [name: string]: SchemaObject | ReferenceObject };
+}
+
+export interface SecurityRequirementObject {
+  [schemeName: string]: string[];
+}
+
+export interface ExternalDocumentationObject {
+  description?: string;
+  url: string;
 }
 
 export interface Endpoint {
