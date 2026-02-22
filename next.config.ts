@@ -1,8 +1,12 @@
 import type {NextConfig} from 'next';
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+
 const nextConfig: NextConfig = {
   output: 'export',
-  basePath: process.env.NEXT_PUBLIC_BASE_PATH || '',
+  basePath,
+  // Ensure static assets (_next/*) resolve correctly on GitHub Pages project sites.
+  assetPrefix: basePath ? `${basePath}/` : undefined,
   trailingSlash: true,
   typescript: {
     ignoreBuildErrors: true,
