@@ -9,7 +9,9 @@
     "build": "NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "export": "next build",
+    "deploy": "npm run export && touch out/.nojekyll"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.28.0",
