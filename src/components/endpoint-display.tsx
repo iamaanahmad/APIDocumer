@@ -87,6 +87,20 @@ function getRequestBody(operation: Endpoint['operation'], spec: OpenAPISpec) {
   return operation.requestBody;
 }
 
+function getContentExample(content: Record<string, any> | undefined, mediaType: string | undefined) {
+  if (!content || !mediaType) return undefined;
+  const media = content[mediaType];
+  if (!media) return undefined;
+  if (media.example !== undefined) return media.example;
+  if (media.examples) {
+    const firstExample = Object.values(media.examples)[0] as { value?: unknown } | undefined;
+    if (firstExample && typeof firstExample === 'object' && 'value' in firstExample) {
+      return firstExample.value;
+    }
+  }
+  return undefined;
+}
+
 export function EndpointDisplay({ endpoint, spec }: EndpointDisplayProps) {
   const { method, path, operation } = endpoint;
   const effectiveSecurity = operation.security ?? spec.security ?? [];
@@ -101,7 +115,9 @@ export function EndpointDisplay({ endpoint, spec }: EndpointDisplayProps) {
   const preferredRequestMediaType = requestMediaTypes.includes('application/json') ? 'application/json' : requestMediaTypes[0];
   const requestSchema = preferredRequestMediaType ? requestBody?.content?.[preferredRequestMediaType]?.schema : undefined;
 
-  const requestBodyExample = requestSchema ? generateExampleFromSchema(requestSchema, spec) : undefined;
+  const requestBodyExample =
+    getContentExample(requestBody?.content, preferredRequestMediaType) ??
+    (requestSchema ? generateExampleFromSchema(requestSchema, spec) : undefined);
 
   const curlExample = generateCurl(endpoint, spec);
   const jsExample = buildFetchSnippet(endpoint, spec, requestBodyExample);
@@ -236,7 +252,9 @@ export function EndpointDisplay({ endpoint, spec }: EndpointDisplayProps) {
                   const responseMediaTypes = response.content ? Object.keys(response.content) : [];
                   const preferredResponseMediaType = responseMediaTypes.includes('application/json') ? 'application/json' : responseMediaTypes[0];
                   const responseSchema = preferredResponseMediaType ? response.content?.[preferredResponseMediaType]?.schema : undefined;
-                  const responseExample = responseSchema ? generateExampleFromSchema(responseSchema, spec) : undefined;
+                  const responseExample =
+                    getContentExample(response.content, preferredResponseMediaType) ??
+                    (responseSchema ? generateExampleFromSchema(responseSchema, spec) : undefined);
 
                   return (
                     <TabsContent key={statusCode} value={statusCode} className="space-y-4">

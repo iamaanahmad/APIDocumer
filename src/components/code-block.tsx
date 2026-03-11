@@ -76,7 +76,7 @@ export function CodeBlock({ code, className, language = 'json' }: { code: string
         </Button>
       </div>
 
-      <div className="max-h-[28rem] overflow-auto">
+      <div className="max-h-[70vh] overflow-auto">
         <SyntaxHighlighter
           language={language}
           style={isDark ? darkCodeTheme : lightCodeTheme}
@@ -89,7 +89,7 @@ export function CodeBlock({ code, className, language = 'json' }: { code: string
             opacity: 0.45,
             userSelect: 'none',
           }}
-          wrapLongLines={false}
+          wrapLongLines
         >
           {code}
         </SyntaxHighlighter>
