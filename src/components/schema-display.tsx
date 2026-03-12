@@ -34,12 +34,12 @@ export function SchemaDisplay({ name, schema, spec }: SchemaDisplayProps) {
   if (!resolvedSchema) {
     return <p className="text-sm text-muted-foreground">Could not resolve schema reference.</p>
   }
-  
+
   const isObject = 'type' in resolvedSchema && resolvedSchema.type === 'object' && resolvedSchema.properties;
   const isArrayOfObjects = 'type' in resolvedSchema && resolvedSchema.type === 'array' && resolvedSchema.items && '$ref' in resolvedSchema.items;
 
   if (!isObject && !isArrayOfObjects) {
-      return null; // Or some other display for non-object schemas
+    return null; // Or some other display for non-object schemas
   }
 
   let properties, required;
@@ -59,7 +59,7 @@ export function SchemaDisplay({ name, schema, spec }: SchemaDisplayProps) {
 
   if (!properties) {
     return (
-        <p className="text-muted-foreground text-sm">Schema details not available.</p>
+      <p className="text-muted-foreground text-sm">Schema details not available.</p>
     );
   }
 
@@ -67,7 +67,7 @@ export function SchemaDisplay({ name, schema, spec }: SchemaDisplayProps) {
   return (
     <div className="space-y-4">
       <h4 className="text-md font-semibold font-mono">{schemaName}</h4>
-      <div className="rounded-lg border">
+      <div className="overflow-x-auto rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>
