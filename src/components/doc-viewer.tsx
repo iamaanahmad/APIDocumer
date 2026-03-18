@@ -177,7 +177,7 @@ export function DocViewer({ initialSpec, initialTaggedEndpoints }: { initialSpec
             ) : (
               <BookOpen className="h-5 w-5 flex-shrink-0" />
             )}
-            <h2 className="text-sm font-semibold tracking-wide group-data-[state=collapsed]:hidden">APIDocumer</h2>
+            <h2 className="text-sm font-semibold tracking-wide group-data-[state=collapsed]:hidden">{initialSpec?.info?.title || 'API Documentation'}</h2>
           </div>
         </SidebarHeader>
 
@@ -211,7 +211,7 @@ export function DocViewer({ initialSpec, initialTaggedEndpoints }: { initialSpec
               />
             )}
             <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold md:text-lg">{initialSpec?.info.title || 'APIDocumer'}</h1>
+              <h1 className="truncate text-base font-semibold md:text-lg">{initialSpec?.info?.title || 'API Documentation'}</h1>
               <p className="hidden text-xs text-muted-foreground md:block">Modern, searchable OpenAPI documentation</p>
             </div>
           </div>
@@ -240,7 +240,7 @@ export function DocViewer({ initialSpec, initialTaggedEndpoints }: { initialSpec
           </div>
         </header>
 
-        <main className="flex-1 px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6 xl:px-10 2xl:px-14">
+        <main className="flex-1 min-w-0 px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6 xl:px-10 2xl:px-14">
           {selectedEndpoint && initialSpec ? (
             <EndpointDisplay endpoint={selectedEndpoint} spec={initialSpec} />
           ) : initialSpec ? (

@@ -126,15 +126,15 @@ export function EndpointDisplay({ endpoint, spec }: EndpointDisplayProps) {
   );
   const snippetTabs = providedCodeSamples.length
     ? providedCodeSamples.map((sample, index) => ({
-        key: `sample-${index}`,
-        label: sample.lang,
-        language: inferSnippetLanguage(sample.lang),
-        code: sample.source,
-      }))
+      key: `sample-${index}`,
+      label: sample.lang,
+      language: inferSnippetLanguage(sample.lang),
+      code: sample.source,
+    }))
     : [
-        { key: 'curl', label: 'cURL', language: 'bash', code: curlExample },
-        { key: 'js', label: 'JavaScript', language: 'javascript', code: jsExample },
-      ];
+      { key: 'curl', label: 'cURL', language: 'bash', code: curlExample },
+      { key: 'js', label: 'JavaScript', language: 'javascript', code: jsExample },
+    ];
 
   const responses = operation.responses || {};
   const responseKeys = Object.keys(responses).sort();
@@ -146,9 +146,9 @@ export function EndpointDisplay({ endpoint, spec }: EndpointDisplayProps) {
           <CardHeader className="space-y-4 pb-4">
             <div className="flex flex-wrap items-center gap-2">
               <MethodBadge method={method} />
-              <code className="rounded-md border bg-secondary/40 px-3 py-1 font-code text-sm md:text-base">{path}</code>
+              <code className="break-all rounded-md border bg-secondary/40 px-3 py-1 font-code text-sm md:text-base">{path}</code>
             </div>
-            {operation.summary && <CardTitle className="text-2xl md:text-3xl tracking-tight">{operation.summary}</CardTitle>}
+            {operation.summary && <CardTitle className="text-2xl md:text-3xl tracking-tight break-words">{operation.summary}</CardTitle>}
             {operation.description && <MarkdownDisplay content={operation.description} className="text-muted-foreground" />}
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {operation.operationId && (
