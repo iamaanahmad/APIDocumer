@@ -1,13 +1,13 @@
 openapi: 3.0.3
 info:
-  title: Free Fire API - Free Fire Player Stats & Data API
+  title: Free Fire Community API - Free Fire Player Stats & Data API
   version: '2.0'
   description: |
-    # Free Fire Community API Documentation
+    # Free Fire API Documentation
     
     ## 🎮 The Most Comprehensive Free Fire API
     
-    Welcome to the **Free Fire Community API** - a comprehensive, unofficial API service that provides access to Free Fire player statistics, craftland maps, wishlist data, and game assets.
+    Welcome to the **Free Fire API** - a comprehensive, API service that provides access to Free Fire player statistics, craftland maps, wishlist data, and game assets.
     
     ### 🌟 Key Features
     - ✅ **Real-time Player Statistics** - Access live player data and rankings
@@ -50,11 +50,12 @@ info:
     ## 🚀 Rate Limits
     
     Rate limits vary by plan:
-    - **Free**: 100 requests/month, 10 requests/minute
-    - **Beginner**: 2,000 requests/month, 15 requests/minute
-    - **Developer**: 25,000 requests/month, 60 requests/minute
-    - **Pro**: 100,000 requests/month, 120 requests/minute
-    - **Enterprise**: Custom limits
+    - **Trial**: Playground only — no API key, no production usage
+    - **Trial Pass**: 300 requests/24hr, 20 requests/minute, 100 requests/hour
+    - **Beginner**: 3,000 requests/month, 30 requests/minute, 500 requests/hour
+    - **Developer**: 12,000 requests/month, 60 requests/minute, 2,000 requests/hour
+    - **Pro**: 30,000 requests/month, 120 requests/minute, 6,000 requests/hour
+    - **Enterprise**: 500,000+ requests/month, custom rate limits
     
     Check response headers for your current rate limit status.
     
@@ -144,6 +145,7 @@ paths:
         - $ref: '#/components/parameters/RegionParam'
         - $ref: '#/components/parameters/UIDParam'
         - $ref: '#/components/parameters/ApiKeyHeader'
+        - $ref: '#/components/parameters/ApiKeyQuery'
       responses:
         '200':
           description: Successfully retrieved player information
@@ -165,9 +167,32 @@ paths:
                   level: 61
                   rank: 306
                   liked: 4902
+                  region: IND
+                captainBasicInfo:
+                  accountId: '973498167'
+                  nickname: Captain
+                  level: 72
+                  rank: 326
+                  liked: 18320
+                  region: IND
                 clanBasicInfo:
                   clanName: ƝEOƝ»Ᏻᴀɴɢ×͜×
-                  memberNum: 37
+                  memberNum: 49
+                  clanLevel: 5
+                  capacity: 50
+                creditScoreInfo:
+                  creditScore: 100
+                  rewardState: 1
+                diamondCostRes:
+                  diamondCost: 390
+                petInfo:
+                  id: '1300000119'
+                  level: 5
+                profileInfo:
+                  avatarId: '101000007'
+                socialInfo:
+                  accountId: '665951869'
+                  signature: I love free fire
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -259,6 +284,7 @@ paths:
         - $ref: '#/components/parameters/RegionParam'
         - $ref: '#/components/parameters/UIDParam'
         - $ref: '#/components/parameters/ApiKeyHeader'
+        - $ref: '#/components/parameters/ApiKeyQuery'
       responses:
         '200':
           description: Successfully retrieved player statistics
@@ -310,6 +336,7 @@ paths:
           description: The item ID to retrieve the image for
           example: '908028011'
         - $ref: '#/components/parameters/ApiKeyHeader'
+        - $ref: '#/components/parameters/ApiKeyQuery'
       responses:
         '200':
           description: Image successfully retrieved
@@ -354,6 +381,7 @@ paths:
           description: The Craftland map code
           example: 'FREEFIRE625B83664022B40F67CBFBFF9CC3C1247490'
         - $ref: '#/components/parameters/ApiKeyHeader'
+        - $ref: '#/components/parameters/ApiKeyQuery'
       responses:
         '200':
           description: Map information successfully retrieved
@@ -387,6 +415,7 @@ paths:
         - $ref: '#/components/parameters/RegionParam'
         - $ref: '#/components/parameters/UIDParam'
         - $ref: '#/components/parameters/ApiKeyHeader'
+        - $ref: '#/components/parameters/ApiKeyQuery'
       responses:
         '200':
           description: Wishlist successfully retrieved
@@ -428,6 +457,7 @@ paths:
           description: Language for the response
           example: en
         - $ref: '#/components/parameters/ApiKeyHeader'
+        - $ref: '#/components/parameters/ApiKeyQuery'
       responses:
         '200':
           description: Ban check completed successfully
@@ -538,19 +568,144 @@ components:
     PlayerInfoResponse:
       type: object
       description: Comprehensive player information
+      required:
+        - basicInfo
       properties:
         basicInfo:
-          type: object
-          description: Basic player account information
+          $ref: '#/components/schemas/PlayerBasicInfo'
+        captainBasicInfo:
+          $ref: '#/components/schemas/PlayerBasicInfo'
         clanBasicInfo:
-          type: object
-          description: Player's clan information
+          $ref: '#/components/schemas/ClanBasicInfo'
         petInfo:
-          type: object
-          description: Player's equipped pet information
+          $ref: '#/components/schemas/PetInfo'
         creditScoreInfo:
-          type: object
-          description: Player's credit score information
+          $ref: '#/components/schemas/CreditScoreInfo'
+        diamondCostRes:
+          $ref: '#/components/schemas/DiamondCostResponse'
+        profileInfo:
+          $ref: '#/components/schemas/ProfileInfo'
+        socialInfo:
+          $ref: '#/components/schemas/SocialInfo'
+      additionalProperties: true
+
+    PlayerBasicInfo:
+      type: object
+      description: Core account and ranking information
+      properties:
+        accountId:
+          type: string
+        nickname:
+          type: string
+        level:
+          type: integer
+        rank:
+          type: integer
+        maxRank:
+          type: integer
+        csRank:
+          type: integer
+        csMaxRank:
+          type: integer
+        rankingPoints:
+          type: integer
+        region:
+          type: string
+        seasonId:
+          type: integer
+        liked:
+          type: integer
+        title:
+          type: string
+        badgeId:
+          type: string
+        bannerId:
+          type: string
+      additionalProperties: true
+
+    ClanBasicInfo:
+      type: object
+      properties:
+        clanId:
+          type: string
+        clanName:
+          type: string
+        captainId:
+          type: string
+        clanLevel:
+          type: integer
+        memberNum:
+          type: integer
+        capacity:
+          type: integer
+      additionalProperties: true
+
+    PetInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        skinId:
+          type: string
+        selectedSkillId:
+          type: string
+        level:
+          type: integer
+        exp:
+          type: integer
+        isSelected:
+          type: boolean
+      additionalProperties: true
+
+    CreditScoreInfo:
+      type: object
+      properties:
+        creditScore:
+          type: integer
+        rewardStartAt:
+          type: string
+        rewardEndAt:
+          type: string
+        rewardState:
+          type: integer
+        rewardType:
+          type: integer
+      additionalProperties: true
+
+    DiamondCostResponse:
+      type: object
+      properties:
+        diamondCost:
+          type: integer
+
+    ProfileInfo:
+      type: object
+      properties:
+        avatarId:
+          type: string
+        clothes:
+          type: array
+          items:
+            type: string
+        equipedSkills:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        isSelected:
+          type: boolean
+        isSelectedAwaken:
+          type: boolean
+      additionalProperties: true
+
+    SocialInfo:
+      type: object
+      properties:
+        accountId:
+          type: string
+        signature:
+          type: string
+      additionalProperties: true
 
     PlayerStatsResponse:
       type: object
@@ -598,12 +753,23 @@ components:
       type: object
       description: Standard error response
       properties:
+        success:
+          type: boolean
+          example: false
         error:
           type: string
         message:
           type: string
-        status:
-          type: integer
+        code:
+          type: string
+          example: AUTH_001
+        documentation:
+          type: string
+          format: uri
+        timestamp:
+          type: string
+          format: date-time
+      additionalProperties: true
 
   responses:
     BadRequest:

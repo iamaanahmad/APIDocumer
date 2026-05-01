@@ -13,6 +13,7 @@ import { MarkdownDisplay } from './markdown-display';
 import { ThemeToggle } from './theme-toggle';
 import { SearchEndpoints } from './search-endpoints';
 import { MethodBadge } from './method-badge';
+import { AskAIButton } from './ask-ai-button';
 
 interface OpenApiLogo {
   url: string;
@@ -235,6 +236,7 @@ export function DocViewer({ initialSpec, initialTaggedEndpoints }: { initialSpec
                 {initialSpec.tags.length} tags
               </Badge>
             ) : null}
+            <AskAIButton spec={initialSpec} />
             <ThemeToggle />
             <SidebarTrigger className="hidden md:inline-flex" />
           </div>

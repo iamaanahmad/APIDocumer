@@ -31,7 +31,7 @@ export function getTaggedEndpoints(spec: OpenAPISpec | null): TaggedEndpoints[] 
   for (const path in spec.paths) {
     for (const method in spec.paths[path]) {
       if (['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)) {
-        const operation = spec.paths[path][method as keyof typeof spec.paths[path]];
+        const operation = (spec.paths[path] as any)[method];
         if(operation && typeof operation === 'object' && 'tags' in operation) {
           allEndpoints.push({ path, method, operation });
         }
