@@ -12,6 +12,8 @@ import { SidebarProvider, Sidebar, SidebarTrigger, SidebarContent, SidebarHeader
 import { MarkdownDisplay } from './markdown-display';
 import { ThemeToggle } from './theme-toggle';
 import { SearchEndpoints } from './search-endpoints';
+import { MethodBadge } from './method-badge';
+import { AskAIButton } from './ask-ai-button';
 
 interface OpenApiLogo {
   url: string;
@@ -25,7 +27,19 @@ function getSpecLogo(spec: OpenAPISpec | null): OpenApiLogo | null {
   return logo;
 }
 
-function WelcomeDisplay({ spec }: { spec: OpenAPISpec }) {
+function WelcomeDisplay({
+  spec,
+  taggedEndpoints,
+  onSelectEndpoint,
+  searchQuery,
+  onSearchChange,
+}: {
+  spec: OpenAPISpec;
+  taggedEndpoints: TaggedEndpoints[];
+  onSelectEndpoint: (endpoint: Endpoint) => void;
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+}) {
   const logo = getSpecLogo(spec);
   const endpointCount = Object.values(spec.paths).reduce((total, item) => {
     return total + Object.keys(item).filter((method) => ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)).length;
@@ -80,8 +94,44 @@ function WelcomeDisplay({ spec }: { spec: OpenAPISpec }) {
       </Card>
 
       <Card className="docs-panel">
-        <CardContent className="py-6 text-sm text-muted-foreground">
-          Select an endpoint from the sidebar to view parameters, schemas, responses, and generated code snippets.
+        <CardHeader className="space-y-2">
+          <CardTitle className="text-xl">Endpoints</CardTitle>
+          <CardDescription>Browse endpoints directly from the main page for faster access.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SearchEndpoints value={searchQuery} onChange={onSearchChange} placeholder="Search endpoints, methods, or tags" />
+          <div className="grid gap-3">
+            {taggedEndpoints.map(({ tag, endpoints }) => (
+              <div key={tag.name} className="rounded-xl border bg-card/70 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{tag.name}</p>
+                    {tag.description && <p className="text-xs text-muted-foreground/80">{tag.description}</p>}
+                  </div>
+                  <Badge variant="secondary" className="text-xs">
+                    {endpoints.length} ops
+                  </Badge>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {endpoints.map((endpoint) => (
+                    <button
+                      key={`${endpoint.method}-${endpoint.path}`}
+                      className="flex items-center gap-2 rounded-lg border bg-background/80 px-3 py-2 text-left text-sm transition hover:border-primary/40 hover:bg-primary/5"
+                      onClick={() => onSelectEndpoint(endpoint)}
+                    >
+                      <MethodBadge method={endpoint.method} />
+                      <span className="truncate font-code text-xs sm:text-sm">{endpoint.path}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          {taggedEndpoints.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              {searchQuery ? `No endpoints found for "${searchQuery}".` : 'No endpoints found in this specification.'}
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -128,7 +178,7 @@ export function DocViewer({ initialSpec, initialTaggedEndpoints }: { initialSpec
             ) : (
               <BookOpen className="h-5 w-5 flex-shrink-0" />
             )}
-            <h2 className="text-sm font-semibold tracking-wide group-data-[state=collapsed]:hidden">APIDocumer</h2>
+            <h2 className="text-sm font-semibold tracking-wide group-data-[state=collapsed]:hidden">{initialSpec?.info?.title || 'API Documentation'}</h2>
           </div>
         </SidebarHeader>
 
@@ -148,26 +198,26 @@ export function DocViewer({ initialSpec, initialTaggedEndpoints }: { initialSpec
       </Sidebar>
 
       <SidebarInset className="docs-page-bg">
-        <header className="glass sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b px-4 md:px-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <SidebarTrigger className="md:hidden">
+        <header className="glass sticky top-0 z-20 flex h-14 items-center justify-between gap-2 border-b px-3 sm:h-16 sm:gap-3 sm:px-4 md:px-6">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <SidebarTrigger className="flex-shrink-0 md:hidden">
               <Menu className="h-4 w-4" />
             </SidebarTrigger>
             {specLogo && (
               <img
                 src={specLogo.url}
                 alt={specLogo.altText || `${initialSpec?.info.title || 'API'} logo`}
-                className="h-7 w-7 flex-shrink-0 rounded-sm object-contain md:hidden"
+                className="h-6 w-6 flex-shrink-0 rounded-sm object-contain sm:h-7 sm:w-7 md:hidden"
                 loading="eager"
               />
             )}
             <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold md:text-lg">{initialSpec?.info.title || 'APIDocumer'}</h1>
+              <h1 className="truncate text-sm font-semibold sm:text-base md:text-lg">{initialSpec?.info?.title || 'API Documentation'}</h1>
               <p className="hidden text-xs text-muted-foreground md:block">Modern, searchable OpenAPI documentation</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-shrink-0 items-center gap-1.5 sm:gap-2">
             {initialSpec?.servers?.[0] && (
               <Badge variant="outline" className="hidden max-w-[22rem] items-center gap-1 truncate md:flex">
                 <Server className="h-3 w-3" />
@@ -186,16 +236,23 @@ export function DocViewer({ initialSpec, initialTaggedEndpoints }: { initialSpec
                 {initialSpec.tags.length} tags
               </Badge>
             ) : null}
+            <AskAIButton spec={initialSpec} />
             <ThemeToggle />
             <SidebarTrigger className="hidden md:inline-flex" />
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-5 md:px-6 md:py-6 xl:px-10 2xl:px-14">
+        <main className="flex-1 min-w-0 px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6 xl:px-10 2xl:px-14">
           {selectedEndpoint && initialSpec ? (
             <EndpointDisplay endpoint={selectedEndpoint} spec={initialSpec} />
           ) : initialSpec ? (
-            <WelcomeDisplay spec={initialSpec} />
+            <WelcomeDisplay
+              spec={initialSpec}
+              taggedEndpoints={filteredTaggedEndpoints}
+              onSelectEndpoint={setSelectedEndpoint}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+            />
           ) : (
             <div className="mx-auto flex h-full min-h-[60vh] max-w-xl items-center justify-center">
               <Card className="docs-panel w-full text-center">
@@ -208,7 +265,15 @@ export function DocViewer({ initialSpec, initialTaggedEndpoints }: { initialSpec
           )}
         </main>
         <footer className="border-t px-4 py-3 text-center text-xs text-muted-foreground md:px-6">
-          Powered by <span className="font-medium text-foreground/90">APIDocumer</span>
+          Powered by{' '}
+          <a
+            href="https://github.com/iamaanahmad/APIDocumer"
+            className="font-medium text-foreground/90 underline-offset-4 hover:underline"
+            target="_blank"
+            rel="noreferrer"
+          >
+            APIDocumer
+          </a>
         </footer>
       </SidebarInset>
     </SidebarProvider>

@@ -25,6 +25,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Pages
+        id: pages
         uses: actions/configure-pages@v5
 
       - name: Setup Node.js
@@ -36,10 +37,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Resolve base path
+        run: |
+          BASE_URL="${{ steps.pages.outputs.base_url }}"
+          if [ -z "$BASE_URL" ]; then
+            echo "NEXT_PUBLIC_BASE_PATH=/${{ github.event.repository.name }}" >> "$GITHUB_ENV"
+          else
+            BASE_PATH="$(node -e "const u=new URL(process.argv[1]);const p=u.pathname.replace(/\\/$/, '');process.stdout.write(p==='/'?'':p);" "$BASE_URL")"
+            echo "NEXT_PUBLIC_BASE_PATH=$BASE_PATH" >> "$GITHUB_ENV"
+          fi
+
       - name: Build static site
         run: npm run deploy
-        env:
-          NEXT_PUBLIC_BASE_PATH: ${{ github.event.repository.name != format('{0}.github.io', github.repository_owner) && format('/{0}', github.event.repository.name) || '' }}
+      
+      - name: Show resolved base path
+        run: |
+          echo "Pages base_url='${{ steps.pages.outputs.base_url }}'"
+          echo "Resolved NEXT_PUBLIC_BASE_PATH='${NEXT_PUBLIC_BASE_PATH}'"
 
       - name: Validate static output
         run: |
