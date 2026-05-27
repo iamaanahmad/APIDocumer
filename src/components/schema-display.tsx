@@ -67,7 +67,31 @@ export function SchemaDisplay({ name, schema, spec }: SchemaDisplayProps) {
   return (
     <div className="space-y-4">
       <h4 className="text-md font-semibold font-mono">{schemaName}</h4>
-      <div className="overflow-x-auto rounded-lg border">
+
+      {/* Mobile: card list */}
+      <div className="flex flex-col gap-2 sm:hidden">
+        {Object.entries(properties).map(([propName, propSchema]) => (
+          <div key={propName} className="rounded-lg border bg-card/80 p-3 space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-sm font-medium text-foreground">{propName}</span>
+              <span className="font-mono text-xs text-muted-foreground bg-secondary/60 rounded px-1.5 py-0.5">
+                {renderType(propSchema, spec)}
+              </span>
+              {required?.includes(propName) && (
+                <span className="text-xs text-destructive font-medium">Required</span>
+              )}
+            </div>
+            {'description' in propSchema && propSchema.description && (
+              <div className="text-xs text-muted-foreground">
+                <MarkdownDisplay content={propSchema.description} className="prose-p:m-0" />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden sm:block overflow-x-auto rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>

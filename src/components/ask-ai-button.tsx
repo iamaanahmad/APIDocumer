@@ -62,9 +62,9 @@ export function AskAIButton({ spec }: { spec: OpenAPISpec | null }) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="hidden h-8 items-center gap-1.5 md:flex">
+          <Button variant="outline" size="sm" className="flex h-8 items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <span>Ask AI</span>
+            <span className="hidden sm:inline">Ask AI</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
@@ -89,15 +89,15 @@ export function AskAIButton({ spec }: { spec: OpenAPISpec | null }) {
       </DropdownMenu>
 
       <Dialog open={markdownOpen} onOpenChange={setMarkdownOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+        <DialogContent className="flex max-h-[90dvh] w-[calc(100vw-2rem)] max-w-3xl flex-col sm:max-h-[80vh] sm:w-auto">
           <DialogHeader>
             <DialogTitle>API Documentation (Markdown)</DialogTitle>
             <DialogDescription>
               A markdown representation of the OpenAPI specification.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-auto rounded-md border bg-muted p-4">
-            <pre className="text-xs whitespace-pre-wrap font-mono">
+          <div className="min-h-0 flex-1 overflow-auto rounded-md border bg-muted p-4">
+            <pre className="whitespace-pre-wrap font-mono text-xs">
               {markdownContent}
             </pre>
           </div>

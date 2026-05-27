@@ -141,20 +141,20 @@ export function EndpointDisplay({ endpoint, spec }: EndpointDisplayProps) {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
-      <section className="space-y-6">
+      <section className="space-y-6 min-w-0">
         <Card className="docs-panel">
           <CardHeader className="space-y-4 pb-4">
             <div className="flex flex-wrap items-center gap-2">
               <MethodBadge method={method} />
-              <code className="break-all rounded-md border bg-secondary/40 px-3 py-1 font-code text-sm md:text-base">{path}</code>
+              <code className="break-all rounded-md border bg-secondary/40 px-2 py-1 font-code text-xs sm:px-3 sm:text-sm md:text-base">{path}</code>
             </div>
-            {operation.summary && <CardTitle className="text-2xl md:text-3xl tracking-tight break-words">{operation.summary}</CardTitle>}
+            {operation.summary && <CardTitle className="text-xl sm:text-2xl md:text-3xl tracking-tight break-words">{operation.summary}</CardTitle>}
             {operation.description && <MarkdownDisplay content={operation.description} className="text-muted-foreground" />}
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {operation.operationId && (
                 <Badge variant="outline" className="gap-1">
                   <Hash className="h-3 w-3" />
-                  {operation.operationId}
+                  <span className="break-all">{operation.operationId}</span>
                 </Badge>
               )}
               {operation.tags?.map((tag) => (
@@ -234,7 +234,7 @@ export function EndpointDisplay({ endpoint, spec }: EndpointDisplayProps) {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue={responseKeys[0]} className="w-full">
-                <TabsList className="mb-4 h-auto w-full justify-start gap-2 overflow-x-auto bg-transparent p-0">
+                <TabsList className="mb-4 h-auto w-full justify-start gap-2 overflow-x-auto bg-transparent p-0 flex-wrap">
                   {responseKeys.map((statusCode) => (
                     <TabsTrigger key={statusCode} value={statusCode} className="rounded-md border bg-card px-3 py-1.5">
                       {statusCode}
@@ -287,7 +287,7 @@ export function EndpointDisplay({ endpoint, spec }: EndpointDisplayProps) {
         )}
       </section>
 
-      <aside className="space-y-6 xl:sticky xl:top-20 xl:self-start">
+      <aside className="space-y-6 xl:sticky xl:top-20 xl:self-start min-w-0">
         <Card className="docs-panel">
           <CardHeader>
             <CardTitle>Code Snippets</CardTitle>
@@ -373,41 +373,73 @@ export function EndpointDisplay({ endpoint, spec }: EndpointDisplayProps) {
 
 function ParametersTable({ parameters }: { parameters: ParameterObject[] }) {
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[190px]">Name</TableHead>
-            <TableHead className="w-[150px]">Type</TableHead>
-            <TableHead className="min-w-[260px]">Description</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {parameters.map((param) => {
-            const typeLabel =
-              param.schema && '$ref' in param.schema && param.schema.$ref
-                ? param.schema.$ref.split('/').pop() || 'ref'
-                : param.schema && 'type' in param.schema
-                  ? param.schema.type || 'any'
-                  : 'any';
+    <div className="space-y-2">
+      {/* Mobile: card list */}
+      <div className="flex flex-col gap-2 sm:hidden">
+        {parameters.map((param) => {
+          const typeLabel =
+            param.schema && '$ref' in param.schema && param.schema.$ref
+              ? param.schema.$ref.split('/').pop() || 'ref'
+              : param.schema && 'type' in param.schema
+                ? param.schema.type || 'any'
+                : 'any';
 
-            return (
-              <TableRow key={`${param.in}-${param.name}`}>
-                <TableCell>
-                  <div className="font-code text-sm font-medium">{param.name}</div>
-                  {param.required && (
-                    <Badge variant="destructive" className="mt-1 text-[10px] uppercase">
-                      Required
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="font-code text-xs md:text-sm">{typeLabel}</TableCell>
-                <TableCell>{param.description ? <MarkdownDisplay content={param.description} className="prose-p:m-0" /> : <span className="text-muted-foreground">No description</span>}</TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+          return (
+            <div key={`${param.in}-${param.name}`} className="rounded-lg border bg-card/80 p-3 space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-code text-sm font-medium">{param.name}</span>
+                <span className="font-code text-xs text-muted-foreground bg-secondary/60 rounded px-1.5 py-0.5">{typeLabel}</span>
+                {param.required && (
+                  <Badge variant="destructive" className="text-[10px] uppercase">Required</Badge>
+                )}
+              </div>
+              {param.description && (
+                <div className="text-xs text-muted-foreground">
+                  <MarkdownDisplay content={param.description} className="prose-p:m-0" />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden sm:block overflow-x-auto rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[190px]">Name</TableHead>
+              <TableHead className="w-[150px]">Type</TableHead>
+              <TableHead className="min-w-[260px]">Description</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {parameters.map((param) => {
+              const typeLabel =
+                param.schema && '$ref' in param.schema && param.schema.$ref
+                  ? param.schema.$ref.split('/').pop() || 'ref'
+                  : param.schema && 'type' in param.schema
+                    ? param.schema.type || 'any'
+                    : 'any';
+
+              return (
+                <TableRow key={`${param.in}-${param.name}`}>
+                  <TableCell>
+                    <div className="font-code text-sm font-medium">{param.name}</div>
+                    {param.required && (
+                      <Badge variant="destructive" className="mt-1 text-[10px] uppercase">
+                        Required
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="font-code text-xs md:text-sm">{typeLabel}</TableCell>
+                  <TableCell>{param.description ? <MarkdownDisplay content={param.description} className="prose-p:m-0" /> : <span className="text-muted-foreground">No description</span>}</TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

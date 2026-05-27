@@ -198,26 +198,26 @@ export function DocViewer({ initialSpec, initialTaggedEndpoints }: { initialSpec
       </Sidebar>
 
       <SidebarInset className="docs-page-bg">
-        <header className="glass sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b px-4 md:px-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <SidebarTrigger className="md:hidden">
+        <header className="glass sticky top-0 z-20 flex h-14 items-center justify-between gap-2 border-b px-3 sm:h-16 sm:gap-3 sm:px-4 md:px-6">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <SidebarTrigger className="flex-shrink-0 md:hidden">
               <Menu className="h-4 w-4" />
             </SidebarTrigger>
             {specLogo && (
               <img
                 src={specLogo.url}
                 alt={specLogo.altText || `${initialSpec?.info.title || 'API'} logo`}
-                className="h-7 w-7 flex-shrink-0 rounded-sm object-contain md:hidden"
+                className="h-6 w-6 flex-shrink-0 rounded-sm object-contain sm:h-7 sm:w-7 md:hidden"
                 loading="eager"
               />
             )}
             <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold md:text-lg">{initialSpec?.info?.title || 'API Documentation'}</h1>
+              <h1 className="truncate text-sm font-semibold sm:text-base md:text-lg">{initialSpec?.info?.title || 'API Documentation'}</h1>
               <p className="hidden text-xs text-muted-foreground md:block">Modern, searchable OpenAPI documentation</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-shrink-0 items-center gap-1.5 sm:gap-2">
             {initialSpec?.servers?.[0] && (
               <Badge variant="outline" className="hidden max-w-[22rem] items-center gap-1 truncate md:flex">
                 <Server className="h-3 w-3" />
