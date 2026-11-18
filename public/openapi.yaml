@@ -162,6 +162,9 @@ info:
   # x-logo:
   #   url: https://your-host/logo.png   # square or wide PNG/SVG, shown in the header and overview
   #   altText: Free Fire Community API
+  x-og-image:
+    url: https://developers.freefirecommunity.com/og-image.png
+    alt: Free Fire Community API
   x-api-id: free-fire-community-api
   x-keywords:
     - free fire api
