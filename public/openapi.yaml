@@ -3,6 +3,10 @@ info:
   title: Example Project API
   description: Sample OpenAPI specification for a basic SaaS-style backend.
   version: 1.0.0
+  x-keywords:
+    - example API
+    - SaaS backend API
+    - REST API reference
   contact:
     name: API Support
     email: support@example.com
@@ -15,8 +19,11 @@ servers:
 
 tags:
   - name: Auth
+    description: Authenticate users and obtain access tokens.
   - name: Users
+    description: Manage user accounts.
   - name: Projects
+    description: Create and manage projects.
 
 paths:
   /auth/login:
