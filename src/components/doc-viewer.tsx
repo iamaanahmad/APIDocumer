@@ -16,6 +16,7 @@ import { ThemeToggle } from './theme-toggle';
 import { SearchEndpoints } from './search-endpoints';
 import { AskAIButton } from './ask-ai-button';
 import { cn } from '@/lib/utils';
+import { getBasePath } from '@/lib/site';
 
 const LANG_STORAGE_KEY = 'apidocumer:snippet-lang';
 
@@ -309,6 +310,11 @@ export function DocViewer({ initialSpec, initialTaggedEndpoints }: { initialSpec
           </main>
 
           <footer className="border-t px-4 py-4 text-center text-xs text-muted-foreground md:px-6">
+            <span className="mr-3 inline-flex flex-wrap items-center justify-center gap-x-3">
+              <a href={`${getBasePath()}/llms.txt`} className="underline-offset-4 hover:underline">llms.txt</a>
+              <a href={`${getBasePath()}/llms-full.txt`} className="underline-offset-4 hover:underline">Markdown</a>
+              <a href={`${getBasePath()}/openapi.yaml`} className="underline-offset-4 hover:underline">OpenAPI spec</a>
+            </span>
             Powered by{' '}
             <a href="https://github.com/iamaanahmad/APIDocumer" className="font-medium text-foreground/90 underline-offset-4 hover:underline" target="_blank" rel="noreferrer">
               APIDocumer
