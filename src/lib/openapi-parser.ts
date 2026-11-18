@@ -32,27 +32,25 @@ export function getTaggedEndpoints(spec: OpenAPISpec | null): TaggedEndpoints[] 
     for (const method in spec.paths[path]) {
       if (['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)) {
         const operation = (spec.paths[path] as any)[method];
-        if(operation && typeof operation === 'object' && 'tags' in operation) {
+        if (operation && typeof operation === 'object') {
           allEndpoints.push({ path, method, operation });
         }
       }
     }
   }
 
-  const tags = spec.tags || [];
-  const taggedEndpoints: TaggedEndpoints[] = tags.map(tag => ({
-    tag,
-    endpoints: allEndpoints.filter(ep => ep.operation.tags?.includes(tag.name)),
-  }));
+  // Declared tags keep the spec order. Tags used only by operations are appended.
+  const groups = new Map<string, TaggedEndpoints>();
+  (spec.tags || []).forEach((tag) => groups.set(tag.name, { tag, endpoints: [] }));
 
-  // Handle endpoints with no tags
-  const untaggedEndpoints = allEndpoints.filter(ep => !ep.operation.tags || ep.operation.tags.length === 0);
-  if (untaggedEndpoints.length > 0) {
-    taggedEndpoints.push({
-      tag: { name: 'Untagged', description: 'Endpoints without a tag' },
-      endpoints: untaggedEndpoints,
-    });
-  }
+  // Each operation is listed once, under its first tag, so anchors stay unique.
+  allEndpoints.forEach((endpoint) => {
+    const tagName = endpoint.operation.tags?.[0] ?? 'Endpoints';
+    if (!groups.has(tagName)) {
+      groups.set(tagName, { tag: { name: tagName }, endpoints: [] });
+    }
+    groups.get(tagName)!.endpoints.push(endpoint);
+  });
 
-  return taggedEndpoints.filter(group => group.endpoints.length > 0);
+  return Array.from(groups.values()).filter((group) => group.endpoints.length > 0);
 }

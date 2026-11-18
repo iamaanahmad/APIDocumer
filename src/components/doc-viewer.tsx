@@ -1,19 +1,23 @@
 "use client";
 
-import { useState, useMemo } from 'react';
-import type { OpenAPISpec, Endpoint } from '@/types/openapi';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { OpenAPISpec } from '@/types/openapi';
 import type { TaggedEndpoints } from '@/lib/openapi-parser';
+import { countOperations, describeSecurityScheme, getOperationAnchor, getSecuritySchemes, getTagAnchor } from '@/lib/operation-utils';
 import { EndpointNav } from '@/components/endpoint-nav';
 import { EndpointDisplay } from '@/components/endpoint-display';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Menu, BookOpen, Server, Tag, Route } from 'lucide-react';
-import { SidebarProvider, Sidebar, SidebarTrigger, SidebarContent, SidebarHeader, SidebarInset } from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
+import { BookOpen, ExternalLink, KeyRound, Menu, Server } from 'lucide-react';
 import { MarkdownDisplay } from './markdown-display';
 import { ThemeToggle } from './theme-toggle';
 import { SearchEndpoints } from './search-endpoints';
-import { MethodBadge } from './method-badge';
 import { AskAIButton } from './ask-ai-button';
+import { cn } from '@/lib/utils';
+
+const LANG_STORAGE_KEY = 'apidocumer:snippet-lang';
 
 interface OpenApiLogo {
   url: string;
@@ -27,255 +31,291 @@ function getSpecLogo(spec: OpenAPISpec | null): OpenApiLogo | null {
   return logo;
 }
 
-function WelcomeDisplay({
-  spec,
-  taggedEndpoints,
-  onSelectEndpoint,
-  searchQuery,
-  onSearchChange,
-}: {
-  spec: OpenAPISpec;
-  taggedEndpoints: TaggedEndpoints[];
-  onSelectEndpoint: (endpoint: Endpoint) => void;
-  searchQuery: string;
-  onSearchChange: (value: string) => void;
-}) {
+function Overview({ spec, taggedEndpoints }: { spec: OpenAPISpec; taggedEndpoints: TaggedEndpoints[] }) {
   const logo = getSpecLogo(spec);
-  const endpointCount = Object.values(spec.paths).reduce((total, item) => {
-    return total + Object.keys(item).filter((method) => ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)).length;
-  }, 0);
+  const securitySchemes = getSecuritySchemes(spec);
 
   return (
-    <div className="space-y-6 animate-[fadeIn_220ms_ease-out]">
-      <Card className="docs-panel border-primary/20 overflow-hidden">
-        <CardHeader className="space-y-4 pb-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="font-code">
-              OpenAPI {spec.openapi}
-            </Badge>
-            <Badge variant="outline" className="font-code">
-              v{spec.info.version}
-            </Badge>
-          </div>
-          <div className="space-y-2">
-            {logo && (
-              <div className="mb-3 flex items-center">
-                <img
-                  src={logo.url}
-                  alt={logo.altText || `${spec.info.title} logo`}
-                  className="h-12 max-w-[180px] rounded-md object-contain bg-background/70 p-1"
-                  loading="eager"
-                />
-              </div>
-            )}
-            <CardTitle className="text-3xl md:text-4xl tracking-tight">{spec.info.title}</CardTitle>
-            <CardDescription className="text-sm md:text-base">
-              Interactive API reference with responsive navigation, request/response schemas, and production-ready snippets.
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <MarkdownDisplay content={spec.info.description} className="text-muted-foreground" />
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border bg-card/80 px-4 py-3">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Operations</p>
-              <p className="mt-1 text-2xl font-semibold">{endpointCount}</p>
-            </div>
-            <div className="rounded-lg border bg-card/80 px-4 py-3">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Tags</p>
-              <p className="mt-1 text-2xl font-semibold">{spec.tags?.length || 0}</p>
-            </div>
-            <div className="rounded-lg border bg-card/80 px-4 py-3">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Servers</p>
-              <p className="mt-1 text-2xl font-semibold">{spec.servers?.length || 0}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+    <section id="overview" className="scroll-mt-20 space-y-8 pb-10" aria-labelledby="overview-title">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="font-code">v{spec.info.version}</Badge>
+          <Badge variant="outline" className="font-code">OpenAPI {spec.openapi}</Badge>
+          <Badge variant="outline">{countOperations(spec)} endpoints</Badge>
+        </div>
+        {logo && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logo.url} alt={logo.altText || `${spec.info.title} logo`} className="h-12 max-w-[200px] object-contain" loading="eager" />
+        )}
+        <h1 id="overview-title" className="text-3xl font-bold tracking-tight sm:text-4xl">
+          {spec.info.title}
+        </h1>
+        <MarkdownDisplay content={spec.info.description} className="prose-base max-w-3xl" />
+        {spec.externalDocs?.url && (
+          <a href={spec.externalDocs.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+            <ExternalLink className="h-4 w-4" />
+            {spec.externalDocs.description || 'External documentation'}
+          </a>
+        )}
+      </div>
 
-      <Card className="docs-panel">
-        <CardHeader className="space-y-2">
-          <CardTitle className="text-xl">Endpoints</CardTitle>
-          <CardDescription>Browse endpoints directly from the main page for faster access.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <SearchEndpoints value={searchQuery} onChange={onSearchChange} placeholder="Search endpoints, methods, or tags" />
-          <div className="grid gap-3">
-            {taggedEndpoints.map(({ tag, endpoints }) => (
-              <div key={tag.name} className="rounded-xl border bg-card/70 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{tag.name}</p>
-                    {tag.description && <p className="text-xs text-muted-foreground/80">{tag.description}</p>}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {spec.servers && spec.servers.length > 0 && (
+          <div className="rounded-xl border bg-card/60 p-4 sm:p-5">
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <Server className="h-4 w-4 text-muted-foreground" />
+              Base URLs
+            </h2>
+            <ul className="space-y-2">
+              {spec.servers.map((server) => (
+                <li key={server.url} className="space-y-0.5">
+                  <code className="break-all rounded bg-secondary/60 px-2 py-1 font-code text-xs sm:text-sm">{server.url}</code>
+                  {server.description && <p className="text-xs text-muted-foreground">{server.description}</p>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {securitySchemes.length > 0 && (
+          <div className="rounded-xl border bg-card/60 p-4 sm:p-5">
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <KeyRound className="h-4 w-4 text-muted-foreground" />
+              Authentication
+            </h2>
+            <ul className="space-y-3">
+              {securitySchemes.map(({ name, scheme }) => (
+                <li key={name} className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-code text-sm font-semibold">{name}</span>
+                    <span className="text-xs text-muted-foreground">{describeSecurityScheme(scheme)}</span>
                   </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {endpoints.length} ops
-                  </Badge>
+                  <MarkdownDisplay content={scheme.description} className="prose-p:my-0 prose-p:text-[13px]" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {taggedEndpoints.length > 1 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold">Resources</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {taggedEndpoints.map(({ tag, endpoints }) => (
+              <a
+                key={tag.name}
+                href={`#${getTagAnchor(tag.name)}`}
+                className="group rounded-xl border bg-card/60 p-4 transition-colors hover:border-primary/40 hover:bg-primary/5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{tag.name}</span>
+                  <span className="text-xs text-muted-foreground">{endpoints.length}</span>
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                  {endpoints.map((endpoint) => (
-                    <button
-                      key={`${endpoint.method}-${endpoint.path}`}
-                      className="flex items-center gap-2 rounded-lg border bg-background/80 px-3 py-2 text-left text-sm transition hover:border-primary/40 hover:bg-primary/5"
-                      onClick={() => onSelectEndpoint(endpoint)}
-                    >
-                      <MethodBadge method={endpoint.method} />
-                      <span className="truncate font-code text-xs sm:text-sm">{endpoint.path}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+                {tag.description && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{tag.description}</p>}
+              </a>
             ))}
           </div>
-          {taggedEndpoints.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              {searchQuery ? `No endpoints found for "${searchQuery}".` : 'No endpoints found in this specification.'}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      )}
+    </section>
   );
 }
 
 export function DocViewer({ initialSpec, initialTaggedEndpoints }: { initialSpec: OpenAPISpec | null; initialTaggedEndpoints: TaggedEndpoints[] }) {
   const specLogo = getSpecLogo(initialSpec);
-  const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [activeAnchor, setActiveAnchor] = useState('overview');
+  const [snippetLang, setSnippetLang] = useState('');
+
+  const anchorIds = useMemo(
+    () => [
+      'overview',
+      ...initialTaggedEndpoints.flatMap(({ tag, endpoints }) => [getTagAnchor(tag.name), ...endpoints.map((endpoint) => getOperationAnchor(endpoint))]),
+    ],
+    [initialTaggedEndpoints]
+  );
 
   const filteredTaggedEndpoints = useMemo(() => {
-    if (!searchQuery.trim()) return initialTaggedEndpoints;
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return initialTaggedEndpoints;
 
-    const query = searchQuery.toLowerCase();
     return initialTaggedEndpoints
       .map((group) => ({
         ...group,
-        endpoints: group.endpoints.filter((endpoint) => {
-          return (
+        endpoints: group.endpoints.filter(
+          (endpoint) =>
             endpoint.path.toLowerCase().includes(query) ||
             endpoint.method.toLowerCase().includes(query) ||
             endpoint.operation.summary?.toLowerCase().includes(query) ||
             endpoint.operation.description?.toLowerCase().includes(query) ||
+            endpoint.operation.operationId?.toLowerCase().includes(query) ||
             group.tag.name.toLowerCase().includes(query)
-          );
-        }),
+        ),
       }))
       .filter((group) => group.endpoints.length > 0);
   }, [initialTaggedEndpoints, searchQuery]);
 
+  // Restore the preferred snippet language.
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(LANG_STORAGE_KEY);
+      if (stored) setSnippetLang(stored);
+    } catch {
+      // Storage can be unavailable (private mode); the default language is used.
+    }
+  }, []);
+
+  const handleSnippetLangChange = useCallback((lang: string) => {
+    setSnippetLang(lang);
+    try {
+      window.localStorage.setItem(LANG_STORAGE_KEY, lang);
+    } catch {
+      // Ignore storage failures.
+    }
+  }, []);
+
+  // Scroll-spy: highlight the section nearest the top of the viewport.
+  useEffect(() => {
+    const fromHash = decodeURIComponent(window.location.hash.replace('#', ''));
+    if (fromHash && anchorIds.includes(fromHash)) setActiveAnchor(fromHash);
+
+    const visible = new Set<string>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) visible.add(entry.target.id);
+          else visible.delete(entry.target.id);
+        });
+        const current = anchorIds.find((id) => visible.has(id));
+        if (current) setActiveAnchor(current);
+      },
+      { rootMargin: '-72px 0px -65% 0px', threshold: 0 }
+    );
+
+    anchorIds.forEach((id) => {
+      const element = document.getElementById(id);
+      if (element) observer.observe(element);
+    });
+    return () => observer.disconnect();
+  }, [anchorIds]);
+
+  const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
+
+  const navContent = (onNavigate?: () => void) => (
+    <>
+      <div className="space-y-2 p-3">
+        <SearchEndpoints value={searchQuery} onChange={setSearchQuery} />
+        <a
+          href="#overview"
+          onClick={onNavigate}
+          className={cn(
+            'flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors',
+            activeAnchor === 'overview' ? 'bg-primary/10 text-foreground' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+          )}
+        >
+          <BookOpen className="h-4 w-4" />
+          Overview
+        </a>
+      </div>
+      <EndpointNav taggedEndpoints={filteredTaggedEndpoints} activeAnchor={activeAnchor} onNavigate={onNavigate} />
+      {filteredTaggedEndpoints.length === 0 && searchQuery && (
+        <div className="p-4 text-center text-sm text-muted-foreground">No endpoints found for &quot;{searchQuery}&quot;</div>
+      )}
+    </>
+  );
+
   return (
-    <SidebarProvider defaultOpen={true}>
-      <Sidebar collapsible="icon" className="border-r border-sidebar-border/80">
-        <SidebarHeader className="border-b h-16 flex items-center justify-center p-2">
-          <div className="flex w-full items-center gap-2 rounded-md border border-sidebar-border/70 bg-sidebar-accent/30 px-2 py-2 group-data-[state=collapsed]:justify-center group-data-[state=collapsed]:border-0 group-data-[state=collapsed]:bg-transparent">
+    <div className="docs-page-bg min-h-screen">
+      <header className="glass sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b px-3 sm:px-4 md:px-6">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <Button variant="ghost" size="icon" className="shrink-0 lg:hidden" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation">
+            <Menu className="h-5 w-5" />
+          </Button>
+          <a href="#overview" className="flex min-w-0 items-center gap-2">
             {specLogo ? (
-              <img
-                src={specLogo.url}
-                alt={specLogo.altText || `${initialSpec?.info.title || 'API'} logo`}
-                className="h-6 w-6 flex-shrink-0 rounded-sm object-contain"
-                loading="eager"
-              />
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={specLogo.url} alt={specLogo.altText || `${initialSpec?.info.title || 'API'} logo`} className="h-7 w-7 shrink-0 rounded-sm object-contain" loading="eager" />
             ) : (
-              <BookOpen className="h-5 w-5 flex-shrink-0" />
+              <BookOpen className="h-5 w-5 shrink-0 text-primary" />
             )}
-            <h2 className="text-sm font-semibold tracking-wide group-data-[state=collapsed]:hidden">{initialSpec?.info?.title || 'API Documentation'}</h2>
-          </div>
-        </SidebarHeader>
-
-        <SidebarContent>
-          <div className="space-y-2 p-2 group-data-[state=collapsed]:hidden">
-            <SearchEndpoints value={searchQuery} onChange={setSearchQuery} />
-          </div>
-
-          <div className="mx-2 h-px bg-sidebar-border" />
-
-          <EndpointNav taggedEndpoints={filteredTaggedEndpoints} selectedEndpoint={selectedEndpoint} onSelectEndpoint={setSelectedEndpoint} />
-
-          {filteredTaggedEndpoints.length === 0 && searchQuery && (
-            <div className="p-4 text-center text-sm text-muted-foreground group-data-[state=collapsed]:hidden">No endpoints found for "{searchQuery}"</div>
-          )}
-        </SidebarContent>
-      </Sidebar>
-
-      <SidebarInset className="docs-page-bg">
-        <header className="glass sticky top-0 z-20 flex h-14 items-center justify-between gap-2 border-b px-3 sm:h-16 sm:gap-3 sm:px-4 md:px-6">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            <SidebarTrigger className="flex-shrink-0 md:hidden">
-              <Menu className="h-4 w-4" />
-            </SidebarTrigger>
-            {specLogo && (
-              <img
-                src={specLogo.url}
-                alt={specLogo.altText || `${initialSpec?.info.title || 'API'} logo`}
-                className="h-6 w-6 flex-shrink-0 rounded-sm object-contain sm:h-7 sm:w-7 md:hidden"
-                loading="eager"
-              />
-            )}
-            <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold sm:text-base md:text-lg">{initialSpec?.info?.title || 'API Documentation'}</h1>
-              <p className="hidden text-xs text-muted-foreground md:block">Modern, searchable OpenAPI documentation</p>
-            </div>
-          </div>
-
-          <div className="flex flex-shrink-0 items-center gap-1.5 sm:gap-2">
-            {initialSpec?.servers?.[0] && (
-              <Badge variant="outline" className="hidden max-w-[22rem] items-center gap-1 truncate md:flex">
-                <Server className="h-3 w-3" />
-                <span className="truncate">{initialSpec.servers[0].url}</span>
-              </Badge>
-            )}
-            {initialSpec?.openapi && (
-              <Badge variant="secondary" className="hidden items-center gap-1 md:flex">
-                <Route className="h-3 w-3" />
-                {initialSpec.openapi}
-              </Badge>
-            )}
-            {initialSpec?.tags?.length ? (
-              <Badge variant="secondary" className="hidden items-center gap-1 lg:flex">
-                <Tag className="h-3 w-3" />
-                {initialSpec.tags.length} tags
-              </Badge>
-            ) : null}
-            <AskAIButton spec={initialSpec} />
-            <ThemeToggle />
-            <SidebarTrigger className="hidden md:inline-flex" />
-          </div>
-        </header>
-
-        <main className="flex-1 min-w-0 px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6 xl:px-10 2xl:px-14">
-          {selectedEndpoint && initialSpec ? (
-            <EndpointDisplay endpoint={selectedEndpoint} spec={initialSpec} />
-          ) : initialSpec ? (
-            <WelcomeDisplay
-              spec={initialSpec}
-              taggedEndpoints={filteredTaggedEndpoints}
-              onSelectEndpoint={setSelectedEndpoint}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-            />
-          ) : (
-            <div className="mx-auto flex h-full min-h-[60vh] max-w-xl items-center justify-center">
-              <Card className="docs-panel w-full text-center">
-                <CardHeader>
-                  <CardTitle>Specification Not Found</CardTitle>
-                  <CardDescription>Could not load `public/openapi.yaml`. Add a valid OpenAPI spec and redeploy.</CardDescription>
-                </CardHeader>
-              </Card>
-            </div>
-          )}
-        </main>
-        <footer className="border-t px-4 py-3 text-center text-xs text-muted-foreground md:px-6">
-          Powered by{' '}
-          <a
-            href="https://github.com/iamaanahmad/APIDocumer"
-            className="font-medium text-foreground/90 underline-offset-4 hover:underline"
-            target="_blank"
-            rel="noreferrer"
-          >
-            APIDocumer
+            <span className="truncate text-sm font-semibold sm:text-base">{initialSpec?.info?.title || 'API Documentation'}</span>
           </a>
-        </footer>
-      </SidebarInset>
-    </SidebarProvider>
+          {initialSpec?.info?.version && (
+            <Badge variant="secondary" className="hidden font-code sm:inline-flex">
+              v{initialSpec.info.version}
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <AskAIButton spec={initialSpec} />
+          <ThemeToggle />
+        </div>
+      </header>
+
+      <div className="flex">
+        <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-72 shrink-0 overflow-y-auto border-r bg-background/60 lg:block xl:w-80" aria-label="Sidebar">
+          {navContent()}
+        </aside>
+
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <SheetContent side="left" className="w-[88vw] max-w-sm overflow-y-auto p-0">
+            <SheetTitle className="sr-only">Navigation</SheetTitle>
+            <SheetDescription className="sr-only">Browse API endpoints by resource.</SheetDescription>
+            <div className="pt-8">{navContent(closeMobileNav)}</div>
+          </SheetContent>
+        </Sheet>
+
+        <div className="min-w-0 flex-1">
+          <main className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
+            {initialSpec ? (
+              <>
+                <Overview spec={initialSpec} taggedEndpoints={initialTaggedEndpoints} />
+                {initialTaggedEndpoints.map(({ tag, endpoints }) => {
+                  const tagAnchor = getTagAnchor(tag.name);
+                  return (
+                    <section key={tag.name} id={tagAnchor} className="scroll-mt-20 border-t pt-10" aria-labelledby={`${tagAnchor}-title`}>
+                      <div className="mb-2 space-y-2">
+                        <h2 id={`${tagAnchor}-title`} className="text-2xl font-bold tracking-tight sm:text-3xl">
+                          {tag.name}
+                        </h2>
+                        <MarkdownDisplay content={tag.description} className="max-w-3xl" />
+                      </div>
+                      {endpoints.map((endpoint) => (
+                        <EndpointDisplay
+                          key={getOperationAnchor(endpoint)}
+                          endpoint={endpoint}
+                          spec={initialSpec}
+                          snippetLang={snippetLang}
+                          onSnippetLangChange={handleSnippetLangChange}
+                        />
+                      ))}
+                    </section>
+                  );
+                })}
+              </>
+            ) : (
+              <div className="mx-auto flex min-h-[60vh] max-w-xl items-center justify-center">
+                <Card className="docs-panel w-full text-center">
+                  <CardHeader>
+                    <CardTitle>Specification Not Found</CardTitle>
+                    <CardDescription>Could not load `public/openapi.yaml`. Add a valid OpenAPI spec and redeploy.</CardDescription>
+                  </CardHeader>
+                </Card>
+              </div>
+            )}
+          </main>
+
+          <footer className="border-t px-4 py-4 text-center text-xs text-muted-foreground md:px-6">
+            Powered by{' '}
+            <a href="https://github.com/iamaanahmad/APIDocumer" className="font-medium text-foreground/90 underline-offset-4 hover:underline" target="_blank" rel="noreferrer">
+              APIDocumer
+            </a>
+          </footer>
+        </div>
+      </div>
+    </div>
   );
 }
