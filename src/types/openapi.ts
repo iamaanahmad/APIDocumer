@@ -18,6 +18,7 @@ export interface InfoObject {
     altText?: string;
   };
   'x-keywords'?: string[];
+  contact?: { name?: string; url?: string; email?: string };
 }
 
 export interface ServerObject {

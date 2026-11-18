@@ -14,6 +14,7 @@ import { Bot, Copy, FileText, ExternalLink, Sparkles } from "lucide-react";
 import type { OpenAPISpec } from "@/types/openapi";
 import { useToast } from "@/hooks/use-toast";
 import { generateMarkdown } from "@/lib/export-markdown";
+import { getBasePath } from "@/lib/site";
 
 export function AskAIButton({ spec }: { spec: OpenAPISpec | null }) {
   const { toast } = useToast();
@@ -21,7 +22,8 @@ export function AskAIButton({ spec }: { spec: OpenAPISpec | null }) {
   const [markdownContent, setMarkdownContent] = useState("");
 
   const handleOpenAI = (type: "chatgpt" | "claude") => {
-    const url = window.location.href;
+    // Point assistants at the Markdown version, which is far easier to parse than the HTML page.
+    const url = `${window.location.origin}${getBasePath()}/llms-full.txt`;
     const prompt = `Hi, read this API documentation (${url}) and be ready to answer questions about it.`;
     const encodedPrompt = encodeURIComponent(prompt);
 

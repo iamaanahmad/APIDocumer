@@ -82,6 +82,20 @@ For best SEO and discoverability, include high-quality fields in your spec:
 
 These are used to build page metadata (title, description, keywords, Open Graph, and Twitter cards).
 
+## AI and LLM Access
+
+Every build also publishes machine-readable versions of your documentation, generated from the same `openapi.yaml`:
+
+| File | Purpose |
+| --- | --- |
+| `/llms.txt` | Short index following the [llms.txt](https://llmstxt.org/) convention: summary, base URL, auth, and a link per endpoint. |
+| `/llms-full.txt` | The whole documentation as one Markdown file with resolved parameters, field lists, responses, and example requests. |
+| `/openapi.yaml` | The raw OpenAPI specification. |
+
+The footer links to all three, and the "Ask AI" menu hands assistants the `/llms-full.txt` URL.
+
+Set `NEXT_PUBLIC_SITE_URL` (for example `https://docs.example.com`) at build time so links in `llms.txt`, the canonical URL, and the `rel="alternate"` Markdown link are absolute. Without it, links are relative to the site root.
+
 ## Contributing
 
 1. Fork the repository

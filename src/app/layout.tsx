@@ -2,11 +2,12 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { loadOpenApiSpec } from '@/lib/openapi-loader';
+import { getSiteUrl } from '@/lib/site';
 
 export async function generateMetadata(): Promise<Metadata> {
   const spec = await loadOpenApiSpec();
   const siteName = spec?.info?.title || 'API Documentation';
-  const siteUrl = spec?.servers?.[0]?.url || 'https://apidocumer.github.io';
+  const siteUrl = getSiteUrl() || spec?.servers?.[0]?.url || 'https://apidocumer.github.io';
 
   let metadataBase: URL;
   try {
@@ -84,7 +85,7 @@ export default async function RootLayout({
 }>) {
   const spec = await loadOpenApiSpec();
   const siteName = spec?.info?.title || 'API Documentation';
-  const siteUrl = spec?.servers?.[0]?.url || 'https://apidocumer.github.io';
+  const siteUrl = getSiteUrl() || spec?.servers?.[0]?.url || 'https://apidocumer.github.io';
 
   const structuredData = {
     '@context': 'https://schema.org',

@@ -3,6 +3,7 @@ import type { OpenAPISpec } from '@/types/openapi';
 import { getTaggedEndpoints } from '@/lib/openapi-parser';
 import { loadOpenApiSpec } from '@/lib/openapi-loader';
 import { DocViewer } from '@/components/doc-viewer';
+import { getBasePath, getSiteUrl } from '@/lib/site';
 
 function endpointCount(spec: OpenAPISpec): number {
   return Object.values(spec.paths).reduce((total, pathItem) => {
@@ -58,7 +59,11 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     keywords,
-    alternates: { canonical: '/' },
+    alternates: {
+      canonical: '/',
+      // Advertise the Markdown version for agents. Needs NEXT_PUBLIC_SITE_URL so the link is absolute.
+      ...(getSiteUrl() ? { types: { 'text/markdown': `${getBasePath()}/llms-full.txt` } } : {}),
+    },
     openGraph: {
       type: 'website',
       title,
