@@ -79,8 +79,23 @@ For best SEO and discoverability, include high-quality fields in your spec:
 - `info.version`
 - `servers[0].url`
 - optional `info.x-keywords` (string array)
+- optional `info.x-og-image` (URL, or `{ url, alt }`), a 1200x630 image for social previews
 
-These are used to build page metadata (title, description, keywords, Open Graph, and Twitter cards).
+These are used to build page metadata (title, description, keywords, Open Graph, Twitter cards, and JSON-LD). The meta description is the first paragraph of `info.description`, converted to plain text, so start the description with a one-sentence summary.
+
+## SEO
+
+Every build emits a canonical URL, `robots.txt`, `sitemap.xml`, Open Graph/Twitter tags, and `WebSite` structured data. All endpoints are rendered into the static HTML.
+
+Absolute URLs need the public address of the docs site, which is resolved in this order:
+
+1. `NEXT_PUBLIC_SITE_URL`, for example `https://docs.example.com` (set it in your host's build environment, or as a repository variable for the GitHub Pages workflow).
+2. `VERCEL_PROJECT_PRODUCTION_URL`, set automatically on Vercel.
+3. The GitHub Pages URL, set automatically by `.github/workflows/deploy.yml`.
+
+If none is available, the canonical URL and sitemap entries are omitted rather than guessed. The API server URL from `servers` is never used, because the docs and the API usually live on different hosts.
+
+The site icon lives in `src/app/` (`icon.svg`, `favicon.ico`, `apple-icon.png`). Replace those files to use your own branding.
 
 ## AI and LLM Access
 

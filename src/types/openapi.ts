@@ -18,6 +18,8 @@ export interface InfoObject {
     altText?: string;
   };
   'x-keywords'?: string[];
+  /** Social preview image for Open Graph / Twitter cards. Recommended size 1200x630. */
+  'x-og-image'?: string | { url: string; alt?: string };
   contact?: { name?: string; url?: string; email?: string };
 }
 

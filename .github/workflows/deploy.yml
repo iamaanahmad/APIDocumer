@@ -45,6 +45,14 @@ jobs:
           else
             BASE_PATH="$(node -e "const u=new URL(process.argv[1]);const p=u.pathname.replace(/\\/$/, '');process.stdout.write(p==='/'?'':p);" "$BASE_URL")"
             echo "NEXT_PUBLIC_BASE_PATH=$BASE_PATH" >> "$GITHUB_ENV"
+            # Site origin for canonical URLs, sitemap and llms.txt links. A repository variable wins if set.
+            if [ -z "${{ vars.NEXT_PUBLIC_SITE_URL }}" ]; then
+              SITE_ORIGIN="$(node -e "process.stdout.write(new URL(process.argv[1]).origin)" "$BASE_URL")"
+              echo "NEXT_PUBLIC_SITE_URL=$SITE_ORIGIN" >> "$GITHUB_ENV"
+            fi
+          fi
+          if [ -n "${{ vars.NEXT_PUBLIC_SITE_URL }}" ]; then
+            echo "NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL }}" >> "$GITHUB_ENV"
           fi
 
       - name: Build static site
@@ -54,6 +62,7 @@ jobs:
         run: |
           echo "Pages base_url='${{ steps.pages.outputs.base_url }}'"
           echo "Resolved NEXT_PUBLIC_BASE_PATH='${NEXT_PUBLIC_BASE_PATH}'"
+          echo "Resolved NEXT_PUBLIC_SITE_URL='${NEXT_PUBLIC_SITE_URL}'"
 
       - name: Validate static output
         run: |
