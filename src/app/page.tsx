@@ -1,80 +1,56 @@
 import type { Metadata } from 'next';
-import type { OpenAPISpec } from '@/types/openapi';
 import { getTaggedEndpoints } from '@/lib/openapi-parser';
 import { loadOpenApiSpec } from '@/lib/openapi-loader';
 import { DocViewer } from '@/components/doc-viewer';
-import { getBasePath, getSiteUrl } from '@/lib/site';
-
-function endpointCount(spec: OpenAPISpec): number {
-  return Object.values(spec.paths).reduce((total, pathItem) => {
-    const count = Object.keys(pathItem).filter((method) => ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)).length;
-    return total + count;
-  }, 0);
-}
-
-function compactText(value: string | undefined, maxLength = 170): string | undefined {
-  if (!value) return undefined;
-  const normalized = value.replace(/\s+/g, ' ').trim();
-  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 1)}…` : normalized;
-}
+import { getBasePath, getSiteHomeUrl } from '@/lib/site';
+import { docsTitle, metaDescription, ogImage } from '@/lib/seo';
 
 export async function generateMetadata(): Promise<Metadata> {
   const spec = await loadOpenApiSpec();
+  const homeUrl = getSiteHomeUrl();
 
   if (!spec) {
     return {
       title: 'API Documentation',
       description: 'OpenAPI documentation viewer.',
-      alternates: { canonical: '/' },
     };
   }
 
-  const title = `${spec.info.title} API Documentation`;
-  const description =
-    compactText(spec.info.description) ||
-    `${spec.info.title} API reference with ${endpointCount(spec)} operations and OpenAPI ${spec.openapi} schema.`;
+  const title = docsTitle(spec);
+  const description = metaDescription(spec);
+  const image = ogImage(spec);
+  const imageAlt = typeof spec.info['x-og-image'] === 'object' ? spec.info['x-og-image'].alt : undefined;
 
-  const rawKeywords = spec.info['x-keywords'] ?? [];
-  let serverHost: string | undefined;
-  if (spec.servers?.[0]?.url) {
-    try {
-      serverHost = new URL(spec.servers[0].url).hostname;
-    } catch {
-      serverHost = undefined;
-    }
-  }
   const keywords = Array.from(
-    new Set([
-      ...rawKeywords,
-      spec.info.title,
-      `${spec.info.title} API`,
-      'API docs',
-      'OpenAPI',
-      'REST API',
-      ...(serverHost ? [serverHost] : []),
-    ])
+    new Set([...(spec.info['x-keywords'] ?? []), spec.info.title, `${spec.info.title} documentation`, 'API reference', 'OpenAPI', 'REST API'])
   );
 
   return {
-    title,
+    // `absolute` keeps the layout's title template from appending the site name a second time.
+    title: { absolute: title },
     description,
     keywords,
-    alternates: {
-      canonical: '/',
-      // Advertise the Markdown version for agents. Needs NEXT_PUBLIC_SITE_URL so the link is absolute.
-      ...(getSiteUrl() ? { types: { 'text/markdown': `${getBasePath()}/llms-full.txt` } } : {}),
-    },
+    alternates: homeUrl
+      ? {
+          canonical: homeUrl,
+          // Markdown version for agents and LLMs.
+          types: { 'text/markdown': `${getBasePath()}/llms-full.txt` },
+        }
+      : undefined,
     openGraph: {
       type: 'website',
       title,
       description,
-      url: '/',
       siteName: spec.info.title,
+      locale: 'en_US',
+      ...(homeUrl ? { url: homeUrl } : {}),
+      ...(image ? { images: [{ url: image, alt: imageAlt ?? title }] } : {}),
     },
     twitter: {
-      card: 'summary_large_image',
+      card: image ? 'summary_large_image' : 'summary',
       title,
       description,
+      ...(image ? { images: [image] } : {}),
     },
   };
 }
