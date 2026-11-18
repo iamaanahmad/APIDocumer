@@ -52,6 +52,7 @@ export interface OperationObject {
   summary?: string;
   description?: string;
   operationId?: string;
+  deprecated?: boolean;
   parameters?: (ParameterObject | ReferenceObject)[];
   requestBody?: RequestBodyObject | ReferenceObject;
   responses: ResponsesObject;
@@ -67,6 +68,8 @@ export interface ParameterObject {
   in: 'query' | 'header' | 'path' | 'cookie';
   description?: string;
   required?: boolean;
+  deprecated?: boolean;
+  example?: any;
   schema?: SchemaObject | ReferenceObject;
 }
 
@@ -88,16 +91,32 @@ export interface ResponseObject {
 export interface MediaTypeObject {
   schema?: SchemaObject | ReferenceObject;
   example?: any;
+  examples?: { [name: string]: { summary?: string; value?: any } };
 }
 
 export interface SchemaObject {
-  type?: 'string' | 'number' | 'integer' | 'boolean' | 'array' | 'object';
+  type?: 'string' | 'number' | 'integer' | 'boolean' | 'array' | 'object' | 'null';
   format?: string;
   properties?: { [name: string]: SchemaObject | ReferenceObject };
   items?: SchemaObject | ReferenceObject;
   required?: string[];
   description?: string;
   example?: any;
+  default?: any;
+  enum?: any[];
+  nullable?: boolean;
+  deprecated?: boolean;
+  readOnly?: boolean;
+  writeOnly?: boolean;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  allOf?: (SchemaObject | ReferenceObject)[];
+  oneOf?: (SchemaObject | ReferenceObject)[];
+  anyOf?: (SchemaObject | ReferenceObject)[];
+  additionalProperties?: boolean | SchemaObject | ReferenceObject;
   $ref?: string;
 }
 
@@ -105,8 +124,18 @@ export interface ReferenceObject {
   $ref: string;
 }
 
+export interface SecuritySchemeObject {
+  type: 'apiKey' | 'http' | 'oauth2' | 'openIdConnect' | 'mutualTLS';
+  description?: string;
+  name?: string;
+  in?: 'query' | 'header' | 'cookie';
+  scheme?: string;
+  bearerFormat?: string;
+}
+
 export interface ComponentsObject {
   schemas?: { [name: string]: SchemaObject | ReferenceObject };
+  securitySchemes?: { [name: string]: SecuritySchemeObject | ReferenceObject };
 }
 
 export interface SecurityRequirementObject {

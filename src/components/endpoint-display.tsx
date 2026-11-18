@@ -1,445 +1,292 @@
 "use client";
 
-import type { OpenAPISpec, Endpoint, ParameterObject, ResponseObject, ReferenceObject } from '@/types/openapi';
+import type { OpenAPISpec, Endpoint, ParameterObject, SchemaObject } from '@/types/openapi';
 import { resolveRef } from '@/lib/openapi-parser';
-import { generateCurl } from '@/lib/curl-generator';
-import { generateExampleFromSchema } from '@/lib/example-generator';
+import {
+  buildSnippets,
+  describeSecurityScheme,
+  getEffectiveSecurity,
+  getMediaExample,
+  getOperationAnchor,
+  getRequestBody,
+  getResolvedParameters,
+  getResolvedResponse,
+  getSecuritySchemes,
+  statusTone,
+} from '@/lib/operation-utils';
 import { MethodBadge } from '@/components/method-badge';
 import { SchemaDisplay } from '@/components/schema-display';
 import { CodeBlock } from '@/components/code-block';
 import { MarkdownDisplay } from '@/components/markdown-display';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Globe, Hash, KeyRound, Lock, ShieldCheck } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { ChevronRight, KeyRound, Link2 } from 'lucide-react';
 
 interface EndpointDisplayProps {
   endpoint: Endpoint;
   spec: OpenAPISpec;
+  /** Lower-cased snippet label shared across all operations, for example `python`. */
+  snippetLang?: string;
+  onSnippetLangChange?: (lang: string) => void;
 }
 
-interface VendorCodeSample {
-  lang: string;
-  source: string;
+const toneClasses: Record<ReturnType<typeof statusTone>, string> = {
+  success: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
+  redirect: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30',
+  client: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
+  server: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30',
+  neutral: 'bg-secondary text-muted-foreground border-border',
+};
+
+const panelTabList =
+  'h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b border-white/10 bg-transparent px-2 py-1.5 text-slate-400';
+const panelTabTrigger =
+  'rounded-md px-2.5 py-1 text-xs text-slate-400 hover:text-slate-100 data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:shadow-none';
+
+function parameterTypeLabel(parameter: ParameterObject, spec: OpenAPISpec): { label: string; schema?: SchemaObject } {
+  if (!parameter.schema) return { label: 'any' };
+  const schema = ('$ref' in parameter.schema && parameter.schema.$ref ? resolveRef(spec, parameter.schema.$ref) : parameter.schema) as SchemaObject | null;
+  if (!schema) return { label: 'any' };
+  const type = schema.type === 'array' && schema.items && !('$ref' in schema.items) ? `${schema.items.type ?? 'any'}[]` : (schema.type ?? 'any');
+  return { label: schema.format ? `${type} · ${schema.format}` : type, schema };
 }
 
-function inferSnippetLanguage(label: string): string {
-  const value = label.toLowerCase();
-  if (value.includes('curl')) return 'bash';
-  if (value.includes('javascript') || value.includes('js')) return 'javascript';
-  if (value.includes('typescript') || value.includes('ts')) return 'typescript';
-  if (value.includes('python') || value.includes('py')) return 'python';
-  if (value.includes('php')) return 'php';
-  if (value.includes('java')) return 'java';
-  if (value.includes('go') || value.includes('golang')) return 'go';
-  return 'bash';
-}
-
-function buildFetchSnippet(endpoint: Endpoint, spec: OpenAPISpec, requestBodyExample?: unknown) {
-  const server = spec.servers?.[0]?.url || 'https://api.example.com';
-  const url = `${server}${endpoint.path}`;
-  const method = endpoint.method.toUpperCase();
-
-  const lines = [
-    `const response = await fetch('${url}', {`,
-    `  method: '${method}',`,
-    `  headers: {`,
-    `    'Content-Type': 'application/json',`,
-    `    'x-api-key': process.env.API_KEY || 'YOUR_API_KEY',`,
-    `  },`,
-  ];
-
-  if (requestBodyExample !== undefined) {
-    lines.push(`  body: JSON.stringify(${JSON.stringify(requestBodyExample, null, 2)}),`);
-  }
-
-  lines.push('});');
-  lines.push('const data = await response.json();');
-  lines.push('console.log(data);');
-
-  return lines.join('\n');
-}
-
-function getResolvedParameters(operation: Endpoint['operation'], spec: OpenAPISpec): ParameterObject[] {
+function ParameterGroup({ title, parameters, spec }: { title: string; parameters: ParameterObject[]; spec: OpenAPISpec }) {
+  if (parameters.length === 0) return null;
   return (
-    operation.parameters
-      ?.map((parameter) => ('$ref' in parameter ? resolveRef(spec, parameter.$ref) : parameter))
-      .filter((parameter): parameter is ParameterObject => Boolean(parameter && typeof parameter === 'object' && 'in' in parameter && 'name' in parameter)) ||
-    []
+    <div className="space-y-2">
+      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h4>
+      <ul className="divide-y rounded-lg border bg-card/60">
+        {parameters.map((parameter) => {
+          const { label, schema } = parameterTypeLabel(parameter, spec);
+          return (
+            <li key={`${parameter.in}-${parameter.name}`} className="space-y-1 px-3 py-3 sm:px-4">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="font-code text-sm font-semibold">{parameter.name}</span>
+                <span className="font-code text-xs text-muted-foreground">{label}</span>
+                {parameter.required && (
+                  <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">required</span>
+                )}
+                {parameter.deprecated && (
+                  <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-500">deprecated</span>
+                )}
+              </div>
+              {parameter.description && <MarkdownDisplay content={parameter.description} className="prose-p:my-0 prose-p:text-[13px]" />}
+              {schema?.enum && schema.enum.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Allowed</span>
+                  {schema.enum.map((value) => (
+                    <span key={String(value)} className="rounded border bg-secondary/50 px-1.5 py-0.5 font-code text-[11px]">
+                      {String(value)}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {schema?.default !== undefined && (
+                <p className="text-xs text-muted-foreground">
+                  Default: <span className="font-code text-foreground/90">{JSON.stringify(schema.default)}</span>
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
-function getResolvedResponse(response: ResponseObject | ReferenceObject, spec: OpenAPISpec): ResponseObject | null {
-  if ('$ref' in response) {
-    const resolved = resolveRef(spec, response.$ref);
-    return resolved && typeof resolved === 'object' ? (resolved as ResponseObject) : null;
-  }
-  return response;
-}
-
-function getRequestBody(operation: Endpoint['operation'], spec: OpenAPISpec) {
-  if (!operation.requestBody) return null;
-  if ('$ref' in operation.requestBody) {
-    return resolveRef(spec, operation.requestBody.$ref);
-  }
-  return operation.requestBody;
-}
-
-function getContentExample(content: Record<string, any> | undefined, mediaType: string | undefined) {
-  if (!content || !mediaType) return undefined;
-  const media = content[mediaType];
-  if (!media) return undefined;
-  if (media.example !== undefined) return media.example;
-  if (media.examples) {
-    const firstExample = Object.values(media.examples)[0] as { value?: unknown } | undefined;
-    if (firstExample && typeof firstExample === 'object' && 'value' in firstExample) {
-      return firstExample.value;
-    }
-  }
-  return undefined;
-}
-
-export function EndpointDisplay({ endpoint, spec }: EndpointDisplayProps) {
+export function EndpointDisplay({ endpoint, spec, snippetLang, onSnippetLangChange }: EndpointDisplayProps) {
   const { method, path, operation } = endpoint;
-  const effectiveSecurity = operation.security ?? spec.security ?? [];
+  const anchor = getOperationAnchor(endpoint);
+  const server = spec.servers?.[0]?.url;
 
-  const parameters = getResolvedParameters(operation, spec);
-  const pathParams = parameters.filter((param) => param.in === 'path');
-  const queryParams = parameters.filter((param) => param.in === 'query');
-  const headerParams = parameters.filter((param) => param.in === 'header');
-
+  const parameters = getResolvedParameters(endpoint, spec);
   const requestBody = getRequestBody(operation, spec);
-  const requestMediaTypes = requestBody?.content ? Object.keys(requestBody.content) : [];
-  const preferredRequestMediaType = requestMediaTypes.includes('application/json') ? 'application/json' : requestMediaTypes[0];
-  const requestSchema = preferredRequestMediaType ? requestBody?.content?.[preferredRequestMediaType]?.schema : undefined;
+  const requestMedia = getMediaExample(requestBody?.content, spec);
 
-  const requestBodyExample =
-    getContentExample(requestBody?.content, preferredRequestMediaType) ??
-    (requestSchema ? generateExampleFromSchema(requestSchema, spec) : undefined);
-
-  const curlExample = generateCurl(endpoint, spec);
-  const jsExample = buildFetchSnippet(endpoint, spec, requestBodyExample);
-  const providedCodeSamples = (operation['x-code-samples'] || []).filter(
-    (sample): sample is VendorCodeSample => Boolean(sample?.lang && sample?.source)
+  const security = getEffectiveSecurity(endpoint, spec);
+  const schemes = getSecuritySchemes(spec);
+  const authLabels = security.flatMap((requirement) =>
+    Object.keys(requirement).map((name) => {
+      const scheme = schemes.find((item) => item.name === name)?.scheme;
+      return scheme ? `${name} (${describeSecurityScheme(scheme)})` : name;
+    })
   );
-  const snippetTabs = providedCodeSamples.length
-    ? providedCodeSamples.map((sample, index) => ({
-      key: `sample-${index}`,
-      label: sample.lang,
-      language: inferSnippetLanguage(sample.lang),
-      code: sample.source,
-    }))
-    : [
-      { key: 'curl', label: 'cURL', language: 'bash', code: curlExample },
-      { key: 'js', label: 'JavaScript', language: 'javascript', code: jsExample },
-    ];
+
+  const { snippets, fromSpec } = buildSnippets(endpoint, spec);
+  const activeSnippet = snippets.find((snippet) => snippet.label.toLowerCase() === snippetLang)?.key ?? snippets[0].key;
 
   const responses = operation.responses || {};
   const responseKeys = Object.keys(responses).sort();
+  const responseDetails = responseKeys
+    .map((statusCode) => {
+      const response = getResolvedResponse(responses[statusCode], spec);
+      if (!response) return null;
+      return { statusCode, response, media: getMediaExample(response.content, spec) };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
+  const exampleResponses = responseDetails.filter((item) => item.media.example !== undefined);
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
-      <section className="space-y-6 min-w-0">
-        <Card className="docs-panel">
-          <CardHeader className="space-y-4 pb-4">
+    <article id={anchor} className="scroll-mt-20 border-t py-8 sm:py-10 first:border-t-0" aria-labelledby={`${anchor}-title`}>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] xl:gap-10">
+        <div className="min-w-0 space-y-6">
+          <header className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <MethodBadge method={method} />
-              <code className="break-all rounded-md border bg-secondary/40 px-2 py-1 font-code text-xs sm:px-3 sm:text-sm md:text-base">{path}</code>
+              <code className="break-all font-code text-xs text-muted-foreground sm:text-sm">{path}</code>
+              {operation.deprecated && <Badge variant="outline" className="border-amber-500/40 text-amber-500">Deprecated</Badge>}
             </div>
-            {operation.summary && <CardTitle className="text-xl sm:text-2xl md:text-3xl tracking-tight break-words">{operation.summary}</CardTitle>}
-            {operation.description && <MarkdownDisplay content={operation.description} className="text-muted-foreground" />}
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              {operation.operationId && (
-                <Badge variant="outline" className="gap-1">
-                  <Hash className="h-3 w-3" />
-                  <span className="break-all">{operation.operationId}</span>
-                </Badge>
-              )}
-              {operation.tags?.map((tag) => (
-                <Badge key={tag} variant="secondary">
-                  {tag}
-                </Badge>
-              ))}
+            <h3 id={`${anchor}-title`} className="group/title flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
+              <span className="min-w-0 break-words">{operation.summary || `${method.toUpperCase()} ${path}`}</span>
+              <a
+                href={`#${anchor}`}
+                aria-label={`Link to ${operation.summary || path}`}
+                className="shrink-0 rounded p-1 text-muted-foreground opacity-60 transition hover:text-primary focus-visible:opacity-100 sm:opacity-0 sm:group-hover/title:opacity-100"
+              >
+                <Link2 className="h-4 w-4" />
+              </a>
+            </h3>
+            <MarkdownDisplay content={operation.description} />
+            {authLabels.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <KeyRound className="h-3.5 w-3.5" />
+                <span>Requires</span>
+                {authLabels.map((label) => (
+                  <Badge key={label} variant="outline" className="font-normal">
+                    {label}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </header>
+
+          {parameters.length > 0 && (
+            <section className="space-y-4" aria-label="Parameters">
+              <h4 className="border-b pb-2 text-sm font-semibold">Parameters</h4>
+              <ParameterGroup title="Path" parameters={parameters.filter((p) => p.in === 'path')} spec={spec} />
+              <ParameterGroup title="Query" parameters={parameters.filter((p) => p.in === 'query')} spec={spec} />
+              <ParameterGroup title="Header" parameters={parameters.filter((p) => p.in === 'header')} spec={spec} />
+              <ParameterGroup title="Cookie" parameters={parameters.filter((p) => p.in === 'cookie')} spec={spec} />
+            </section>
+          )}
+
+          {requestBody?.content && (
+            <section className="space-y-3" aria-label="Request body">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                <h4 className="text-sm font-semibold">
+                  Request body
+                  {requestBody.required && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-destructive">required</span>}
+                </h4>
+                {requestMedia.mediaType && <span className="font-code text-xs text-muted-foreground">{requestMedia.mediaType}</span>}
+              </div>
+              <MarkdownDisplay content={requestBody.description} />
+              {requestMedia.schema && <SchemaDisplay name="Body" schema={requestMedia.schema} spec={spec} />}
+            </section>
+          )}
+
+          {responseDetails.length > 0 && (
+            <section className="space-y-3" aria-label="Responses">
+              <h4 className="border-b pb-2 text-sm font-semibold">Responses</h4>
+              <ul className="space-y-2">
+                {responseDetails.map(({ statusCode, response, media }) => (
+                  <li key={statusCode} className="rounded-lg border bg-card/60">
+                    <div className="flex items-start gap-3 px-3 py-3 sm:px-4">
+                      <span className={cn('mt-0.5 rounded-md border px-2 py-0.5 font-code text-xs font-semibold', toneClasses[statusTone(statusCode)])}>{statusCode}</span>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <MarkdownDisplay content={response.description} className="prose-p:my-0 prose-p:text-[13px]" />
+                        {media.mediaType && <p className="font-code text-[11px] text-muted-foreground">{media.mediaType}</p>}
+                      </div>
+                    </div>
+                    {media.schema && (
+                      <details className="group/schema border-t">
+                        <summary className="flex cursor-pointer list-none items-center gap-1 px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground sm:px-4 [&::-webkit-details-marker]:hidden">
+                          <ChevronRight className="h-3.5 w-3.5 transition-transform group-open/schema:rotate-90" />
+                          Response schema
+                        </summary>
+                        <div className="px-3 pb-3 sm:px-4">
+                          <SchemaDisplay name={`Response ${statusCode}`} schema={media.schema} spec={spec} />
+                        </div>
+                      </details>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+
+        <aside className="min-w-0 space-y-4 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:self-start xl:overflow-y-auto xl:pr-1" aria-label="Code examples">
+          <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0b1020] shadow-lg">
+            <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
+              <MethodBadge method={method} size="sm" />
+              <code className="min-w-0 truncate font-code text-xs text-slate-300" title={`${server ?? ''}${path}`}>
+                {server ? `${server.replace(/\/$/, '')}${path}` : path}
+              </code>
             </div>
-          </CardHeader>
-        </Card>
-
-        {(pathParams.length > 0 || queryParams.length > 0 || headerParams.length > 0) && (
-          <Card className="docs-panel">
-            <CardHeader>
-              <CardTitle>Parameters</CardTitle>
-              <CardDescription>Path, query, and header values supported by this endpoint.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {pathParams.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Path Parameters</h4>
-                  <ParametersTable parameters={pathParams} />
-                </div>
-              )}
-              {queryParams.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Query Parameters</h4>
-                  <ParametersTable parameters={queryParams} />
-                </div>
-              )}
-              {headerParams.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Header Parameters</h4>
-                  <ParametersTable parameters={headerParams} />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {requestBody && requestBody.content && (
-          <Card className="docs-panel">
-            <CardHeader>
-              <CardTitle>Request Body</CardTitle>
-              {requestBody.description && (
-                <CardDescription>
-                  <MarkdownDisplay content={requestBody.description} />
-                </CardDescription>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {requestMediaTypes.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  {requestMediaTypes.map((mediaType) => (
-                    <Badge key={mediaType} variant={mediaType === preferredRequestMediaType ? 'default' : 'outline'}>
-                      {mediaType}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-              {requestSchema && <SchemaDisplay name="Request Body" schema={requestSchema} spec={spec} />}
-              {requestBodyExample !== undefined && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Example Request</h4>
-                  <CodeBlock code={JSON.stringify(requestBodyExample, null, 2)} language="json" />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {responseKeys.length > 0 && (
-          <Card className="docs-panel">
-            <CardHeader>
-              <CardTitle>Responses</CardTitle>
-              <CardDescription>Schema and example payloads by HTTP status code.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue={responseKeys[0]} className="w-full">
-                <TabsList className="mb-4 h-auto w-full justify-start gap-2 overflow-x-auto bg-transparent p-0 flex-wrap">
-                  {responseKeys.map((statusCode) => (
-                    <TabsTrigger key={statusCode} value={statusCode} className="rounded-md border bg-card px-3 py-1.5">
-                      {statusCode}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-
-                {responseKeys.map((statusCode) => {
-                  const responseValue = responses[statusCode];
-                  if (!responseValue) return null;
-
-                  const response = getResolvedResponse(responseValue, spec);
-                  if (!response) return null;
-
-                  const responseMediaTypes = response.content ? Object.keys(response.content) : [];
-                  const preferredResponseMediaType = responseMediaTypes.includes('application/json') ? 'application/json' : responseMediaTypes[0];
-                  const responseSchema = preferredResponseMediaType ? response.content?.[preferredResponseMediaType]?.schema : undefined;
-                  const responseExample =
-                    getContentExample(response.content, preferredResponseMediaType) ??
-                    (responseSchema ? generateExampleFromSchema(responseSchema, spec) : undefined);
-
-                  return (
-                    <TabsContent key={statusCode} value={statusCode} className="space-y-4">
-                      <MarkdownDisplay content={response.description} className="text-sm text-muted-foreground" />
-
-                      {responseMediaTypes.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {responseMediaTypes.map((mediaType) => (
-                            <Badge key={mediaType} variant={mediaType === preferredResponseMediaType ? 'default' : 'outline'}>
-                              {mediaType}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-
-                      {responseSchema && <SchemaDisplay name={`Response (${statusCode})`} schema={responseSchema} spec={spec} />}
-
-                      {responseExample !== undefined && (
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-medium">Example Response</h4>
-                          <CodeBlock code={JSON.stringify(responseExample, null, 2)} language="json" />
-                        </div>
-                      )}
-                    </TabsContent>
-                  );
-                })}
-              </Tabs>
-            </CardContent>
-          </Card>
-        )}
-      </section>
-
-      <aside className="space-y-6 xl:sticky xl:top-20 xl:self-start min-w-0">
-        <Card className="docs-panel">
-          <CardHeader>
-            <CardTitle>Code Snippets</CardTitle>
-            <CardDescription>
-              {providedCodeSamples.length > 0
-                ? 'Provided by the OpenAPI specification.'
-                : 'Production-ready templates generated from the spec.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue={snippetTabs[0].key} className="w-full">
-              <TabsList className="mb-3 flex h-auto w-full flex-wrap justify-start gap-2 bg-transparent p-0">
-                {snippetTabs.map((snippet) => (
-                  <TabsTrigger key={snippet.key} value={snippet.key} className="rounded-md border bg-card px-3 py-1.5">
+            <Tabs value={activeSnippet} onValueChange={(value) => onSnippetLangChange?.(snippets.find((s) => s.key === value)?.label.toLowerCase() ?? value)}>
+              <TabsList className={panelTabList} aria-label="Language">
+                {snippets.map((snippet) => (
+                  <TabsTrigger key={snippet.key} value={snippet.key} className={panelTabTrigger}>
                     {snippet.label}
                   </TabsTrigger>
                 ))}
               </TabsList>
-              {snippetTabs.map((snippet) => (
+              {snippets.map((snippet) => (
                 <TabsContent key={snippet.key} value={snippet.key} className="mt-0">
-                  <CodeBlock code={snippet.code} language={snippet.language} />
+                  <CodeBlock code={snippet.code} language={snippet.language} variant="panel" hideHeader className="rounded-none border-0" maxHeightClass="max-h-[45vh]" />
                 </TabsContent>
               ))}
             </Tabs>
-          </CardContent>
-        </Card>
+            {fromSpec && <p className="border-t border-white/10 px-3 py-1.5 text-[11px] text-slate-500">Samples provided by the API specification.</p>}
+          </div>
 
-        <Card className="docs-panel">
-          <CardHeader>
-            <CardTitle>Operation Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex items-start gap-2">
-              <Globe className="mt-0.5 h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="font-medium">Server</p>
-                <p className="text-muted-foreground break-all">{spec.servers?.[0]?.url || 'Not defined in spec'}</p>
-              </div>
+          {requestMedia.example !== undefined && requestMedia.mediaType?.includes('json') && (
+            <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0b1020] shadow-lg">
+              <div className="border-b border-white/10 px-3 py-2 text-xs font-medium text-slate-300">Request body example</div>
+              <CodeBlock code={JSON.stringify(requestMedia.example, null, 2)} language="json" variant="panel" hideHeader className="rounded-none border-0" maxHeightClass="max-h-[35vh]" />
             </div>
+          )}
 
-            <Separator />
-
-            <div className="flex items-start gap-2">
-              <KeyRound className="mt-0.5 h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="font-medium">Authentication</p>
-                {effectiveSecurity.length > 0 ? (
-                  <div className="mt-1 flex flex-wrap gap-1.5">
-                    {effectiveSecurity.map((security, index) => (
-                      <Badge key={`${Object.keys(security).join('-')}-${index}`} variant="outline">
-                        {Object.keys(security).join(', ')}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground">No security requirement specified in operation or global spec.</p>
-                )}
-              </div>
+          {exampleResponses.length > 0 && (
+            <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0b1020] shadow-lg">
+              <Tabs defaultValue={exampleResponses[0].statusCode}>
+                <TabsList className={panelTabList} aria-label="Response status">
+                  <span className="px-2 text-xs font-medium text-slate-300">Response</span>
+                  {exampleResponses.map(({ statusCode }) => (
+                    <TabsTrigger key={statusCode} value={statusCode} className={panelTabTrigger}>
+                      <span
+                        className={cn(
+                          'mr-1.5 inline-block h-1.5 w-1.5 rounded-full',
+                          statusTone(statusCode) === 'success' && 'bg-emerald-400',
+                          statusTone(statusCode) === 'redirect' && 'bg-sky-400',
+                          statusTone(statusCode) === 'client' && 'bg-amber-400',
+                          statusTone(statusCode) === 'server' && 'bg-rose-400',
+                          statusTone(statusCode) === 'neutral' && 'bg-slate-400'
+                        )}
+                      />
+                      {statusCode}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                {exampleResponses.map(({ statusCode, media }) => (
+                  <TabsContent key={statusCode} value={statusCode} className="mt-0">
+                    <CodeBlock
+                      code={typeof media.example === 'string' ? media.example : JSON.stringify(media.example, null, 2)}
+                      language="json"
+                      variant="panel"
+                      hideHeader
+                      className="rounded-none border-0"
+                      maxHeightClass="max-h-[45vh]"
+                    />
+                  </TabsContent>
+                ))}
+              </Tabs>
             </div>
-
-            <Separator />
-
-            <div className="flex items-start gap-2">
-              <ShieldCheck className="mt-0.5 h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="font-medium">OpenAPI Compatibility</p>
-                <p className="text-muted-foreground">Supports standard OpenAPI operation metadata, schemas, and media-type responses.</p>
-              </div>
-            </div>
-
-            <div className="rounded-md border bg-secondary/30 p-3 text-xs text-muted-foreground">
-              <div className="flex gap-2">
-                <Lock className="mt-0.5 h-3.5 w-3.5" />
-                Keep API keys server-side and avoid exposing secrets in browser code.
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </aside>
-    </div>
-  );
-}
-
-function ParametersTable({ parameters }: { parameters: ParameterObject[] }) {
-  return (
-    <div className="space-y-2">
-      {/* Mobile: card list */}
-      <div className="flex flex-col gap-2 sm:hidden">
-        {parameters.map((param) => {
-          const typeLabel =
-            param.schema && '$ref' in param.schema && param.schema.$ref
-              ? param.schema.$ref.split('/').pop() || 'ref'
-              : param.schema && 'type' in param.schema
-                ? param.schema.type || 'any'
-                : 'any';
-
-          return (
-            <div key={`${param.in}-${param.name}`} className="rounded-lg border bg-card/80 p-3 space-y-1.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-code text-sm font-medium">{param.name}</span>
-                <span className="font-code text-xs text-muted-foreground bg-secondary/60 rounded px-1.5 py-0.5">{typeLabel}</span>
-                {param.required && (
-                  <Badge variant="destructive" className="text-[10px] uppercase">Required</Badge>
-                )}
-              </div>
-              {param.description && (
-                <div className="text-xs text-muted-foreground">
-                  <MarkdownDisplay content={param.description} className="prose-p:m-0" />
-                </div>
-              )}
-            </div>
-          );
-        })}
+          )}
+        </aside>
       </div>
-
-      {/* Desktop: table */}
-      <div className="hidden sm:block overflow-x-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[190px]">Name</TableHead>
-              <TableHead className="w-[150px]">Type</TableHead>
-              <TableHead className="min-w-[260px]">Description</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {parameters.map((param) => {
-              const typeLabel =
-                param.schema && '$ref' in param.schema && param.schema.$ref
-                  ? param.schema.$ref.split('/').pop() || 'ref'
-                  : param.schema && 'type' in param.schema
-                    ? param.schema.type || 'any'
-                    : 'any';
-
-              return (
-                <TableRow key={`${param.in}-${param.name}`}>
-                  <TableCell>
-                    <div className="font-code text-sm font-medium">{param.name}</div>
-                    {param.required && (
-                      <Badge variant="destructive" className="mt-1 text-[10px] uppercase">
-                        Required
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-code text-xs md:text-sm">{typeLabel}</TableCell>
-                  <TableCell>{param.description ? <MarkdownDisplay content={param.description} className="prose-p:m-0" /> : <span className="text-muted-foreground">No description</span>}</TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
+    </article>
   );
 }

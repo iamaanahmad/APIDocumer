@@ -1,77 +1,94 @@
 "use client";
 
-import type { Endpoint } from '@/types/openapi';
+import { useEffect, useRef, useState } from 'react';
 import type { TaggedEndpoints } from '@/lib/openapi-parser';
-import { Button } from '@/components/ui/button';
+import { getOperationAnchor, getTagAnchor } from '@/lib/operation-utils';
 import { MethodBadge } from './method-badge';
 import { cn } from '@/lib/utils';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useSidebar } from '@/components/ui/sidebar';
+import { ChevronRight } from 'lucide-react';
 
 interface EndpointNavProps {
   taggedEndpoints: TaggedEndpoints[];
-  selectedEndpoint: Endpoint | null;
-  onSelectEndpoint: (endpoint: Endpoint) => void;
+  activeAnchor: string;
+  onNavigate?: () => void;
 }
 
-export function EndpointNav({ taggedEndpoints, selectedEndpoint, onSelectEndpoint }: EndpointNavProps) {
-  const { isMobile, setOpenMobile } = useSidebar();
+export function EndpointNav({ taggedEndpoints, activeAnchor, onNavigate }: EndpointNavProps) {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const activeRef = useRef<HTMLAnchorElement | null>(null);
+
+  // Keep the active item visible inside the scrollable sidebar.
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [activeAnchor]);
 
   if (!taggedEndpoints || taggedEndpoints.length === 0) {
-    return <div className="p-4 text-sm text-muted-foreground group-data-[state=collapsed]:hidden">No endpoints found in this specification.</div>;
+    return <div className="p-4 text-sm text-muted-foreground">No endpoints found.</div>;
   }
 
-  const handleSelect = (endpoint: Endpoint) => {
-    onSelectEndpoint(endpoint);
-    if (isMobile) {
-      setOpenMobile(false);
-    }
-  };
-
   return (
-    <div className="flex flex-col pb-4">
-      {taggedEndpoints.map(({ tag, endpoints }) => (
-        <div key={tag.name} className="px-2 pt-3">
-          <h3 className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-sidebar-foreground/55 group-data-[state=collapsed]:text-center">
-            <span className="group-data-[state=collapsed]:hidden">{tag.name}</span>
-            <span className="hidden group-data-[state=collapsed]:inline">{tag.name.slice(0, 3)}</span>
-          </h3>
+    <nav aria-label="API endpoints" className="flex flex-col gap-1 pb-6">
+      {taggedEndpoints.map(({ tag, endpoints }) => {
+        const tagAnchor = getTagAnchor(tag.name);
+        const isCollapsed = collapsed[tag.name] ?? false;
+        const groupActive = activeAnchor === tagAnchor || endpoints.some((endpoint) => getOperationAnchor(endpoint) === activeAnchor);
 
-          <div className="flex flex-col gap-1 group-data-[state=collapsed]:items-center">
-            {endpoints.map((endpoint) => {
-              const isActive = selectedEndpoint?.operation.operationId === endpoint.operation.operationId && selectedEndpoint?.path === endpoint.path;
+        return (
+          <div key={tag.name} className="px-2">
+            <div className="flex items-center">
+              <button
+                type="button"
+                aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${tag.name}`}
+                aria-expanded={!isCollapsed}
+                onClick={() => setCollapsed((prev) => ({ ...prev, [tag.name]: !isCollapsed }))}
+                className="rounded p-1 text-muted-foreground hover:text-foreground"
+              >
+                <ChevronRight className={cn('h-3.5 w-3.5 transition-transform', !isCollapsed && 'rotate-90')} />
+              </button>
+              <a
+                href={`#${tagAnchor}`}
+                onClick={onNavigate}
+                className={cn(
+                  'flex-1 truncate rounded-md px-1.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors hover:text-foreground',
+                  groupActive ? 'text-foreground' : 'text-muted-foreground'
+                )}
+              >
+                {tag.name}
+              </a>
+              <span className="pr-2 text-[11px] text-muted-foreground">{endpoints.length}</span>
+            </div>
 
-              return (
-                <TooltipProvider key={`${endpoint.method}-${endpoint.path}`} delayDuration={80}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
+            {!isCollapsed && (
+              <ul className="ml-3 space-y-0.5 border-l pl-2">
+                {endpoints.map((endpoint) => {
+                  const anchor = getOperationAnchor(endpoint);
+                  const isActive = anchor === activeAnchor;
+                  const label = endpoint.operation.summary || endpoint.path;
+
+                  return (
+                    <li key={anchor}>
+                      <a
+                        ref={isActive ? activeRef : undefined}
+                        href={`#${anchor}`}
+                        onClick={onNavigate}
+                        title={`${endpoint.method.toUpperCase()} ${endpoint.path}`}
+                        aria-current={isActive ? 'location' : undefined}
                         className={cn(
-                          'h-auto w-full justify-start gap-2 rounded-lg px-2 py-1.5',
-                          'group-data-[state=collapsed]:h-10 group-data-[state=collapsed]:w-10 group-data-[state=collapsed]:justify-center group-data-[state=collapsed]:p-0',
-                          'hover:bg-sidebar-accent/70',
-                          isActive && 'bg-sidebar-primary/12 text-sidebar-foreground ring-1 ring-sidebar-primary/35'
+                          'flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors',
+                          isActive ? 'bg-primary/10 font-medium text-foreground' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                         )}
-                        onClick={() => handleSelect(endpoint)}
                       >
-                        <MethodBadge method={endpoint.method} />
-                        <span className="truncate font-code text-xs group-data-[state=collapsed]:hidden">{endpoint.path}</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" align="center" className="hidden max-w-xs break-all group-data-[state=collapsed]:block">
-                      <div className="flex items-center gap-2">
-                        <MethodBadge method={endpoint.method} />
-                        <span className="font-code text-xs">{endpoint.path}</span>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              );
-            })}
+                        <MethodBadge method={endpoint.method} size="sm" />
+                        <span className="truncate">{label}</span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
-        </div>
-      ))}
-    </div>
+        );
+      })}
+    </nav>
   );
 }
