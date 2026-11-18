@@ -3,11 +3,11 @@ info:
   title: Free Fire Community API - Free Fire Player Stats & Data API
   version: '2.0'
   description: |
-    # Free Fire API Documentation
+    # Free Fire Community API Documentation
     
     ## 🎮 The Most Comprehensive Free Fire API
     
-    Welcome to the **Free Fire API** - a comprehensive, API service that provides access to Free Fire player statistics, craftland maps, wishlist data, and game assets.
+    Welcome to the **Free Fire Community API** - a comprehensive, API service that provides access to Free Fire player statistics, craftland maps, wishlist data, and game assets.
     
     ### 🌟 Key Features
     - ✅ **Real-time Player Statistics** - Access live player data and rankings
@@ -51,19 +51,74 @@ info:
     
     Rate limits vary by plan:
     - **Trial**: Playground only — no API key, no production usage
-    - **Trial Pass**: 300 requests/24hr, 20 requests/minute, 100 requests/hour
-    - **Beginner**: 3,000 requests/month, 30 requests/minute, 500 requests/hour
-    - **Developer**: 12,000 requests/month, 60 requests/minute, 2,000 requests/hour
-    - **Pro**: 30,000 requests/month, 120 requests/minute, 6,000 requests/hour
-    - **Enterprise**: 500,000+ requests/month, custom rate limits
+    - **Trial Pass**: 500 total requests (one-time), 20 requests/minute, 100 requests/hour
+    - **Beginner**: 5,000 requests/month, 30 requests/minute, 500 requests/hour
+    - **Developer**: 15,000 requests/month, 60 requests/minute, 2,000 requests/hour
+    - **Pro**: 50,000 requests/month, 120 requests/minute, 6,000 requests/hour
+    - **Enterprise**: 100,000+ requests/month, custom rate limits
     
-    Check response headers for your current rate limit status.
+    Top-up credits and upgrade carry-over credits are added on top of your monthly quota.
+    
+    ### Quota cost per request
+    
+    Most endpoints consume **1 unit** of monthly quota per request. The `/stats` endpoint
+    consumes **2 units**. The cost is returned in the `X-Quota-Cost` response header.
+    Per-minute and per-hour burst limits always count each request as 1.
+    
+    ### Per-IP abuse guard
+    
+    In addition to plan limits, requests are counted per IP address over a 5-minute window.
+    Free/trial plans allow 30 requests per window; paid plans allow at least
+    `max(30, per-minute limit × 5)`. Exceeding it returns `429` with `code: RATE_001` and
+    `type: ip-based`.
+    
+    ### Response headers
+    
+    Successful responses include `X-RateLimit-Limit/Remaining/Reset` (per-minute window),
+    `X-RateLimit-Hour-Limit/Remaining/Reset` (per-hour window), `X-Quota-Cost`,
+    `X-Response-Time`, `X-API-Version`, and `X-Cache` (`HIT` or `MISS`).
+    
+    ## 🗄️ Caching
+    
+    Upstream data is cached server-side. Cached responses return `X-Cache: HIT` and
+    `X-Cache-TTL`, and still count against your quota and rate limits.
+    
+    - `/info`, `/stats`, `/guild`: 5 minutes
+    - `/bancheck`, `/wishlist`: 10 minutes
+    - `/craftland`: 15 minutes
+    - `/image`: 1 hour
+    
+    ## 🛡️ Firewall & Required User-Agent Header
+    
+    Every request passes through an edge firewall **before** authentication. Server-side
+    integrations and bots must send a custom `User-Agent` header or they are blocked with a
+    `403` (or `429`) and an `FW_00x` code — before the API key is even checked.
+    
+    **Rules:**
+    - Send a `User-Agent` header of at least 10 characters.
+    - It must **not** contain HTTP library or automation names anywhere in the string
+      (e.g. `curl`, `python`, `requests`, `axios`, `node-fetch`, `Go-http-client`, `okhttp`,
+      `java`, `wget`, `bot`, `scrapy`, `puppeteer`, `playwright`, `selenium`, `postman`,
+      `insomnia`, `httpie`). Matching is case-insensitive and substring-based, so `bot`
+      matches even inside a URL such as `github.com/user/my-bot`.
+    - Default User-Agents from `fetch`/undici, Python `requests`, Go `net/http`, and `curl`
+      are blocked. Override the header explicitly.
+    - Recommended format: `AppName/1.0 (+https://your-site-or-repo)`.
+    
+    **Firewall codes:**
+    - `FW_001` (403): `User-Agent` missing or shorter than 10 characters.
+    - `FW_002` (403): `User-Agent` matches a blocked library/bot pattern.
+    - `FW_003` (403): `User-Agent` reports a very old browser version.
+    - `FW_004` (429): too many requests from one IP (edge rate limit); honor `Retry-After`.
+    
+    A `403` with an `FW_` code is a firewall/User-Agent problem, not an API-key, plan, or
+    region issue. The `region` parameter never affects the firewall or authorization.
     
     ## ⚠️ Important Disclaimer
     
     **This API and the Free Fire Community platform are NOT affiliated with, endorsed by, or connected to Garena International or Free Fire in any way.** This is an independent, community-driven project created by fans for fans. All trademarks, game content, and assets belong to their respective owners.
     
-    ## 📞 Support & Community
+    ## Support & Community
     
     - **Developer Portal**: [developers.freefirecommunity.com](https://developers.freefirecommunity.com/)
     - **Documentation**: [docs.freefirecommunity.com](https://docs.freefirecommunity.com/)
@@ -120,6 +175,8 @@ tags:
     description: Check if a player account is banned or has active ban periods
   - name: Game Assets
     description: Access in-game images, icons, and visual assets
+  - name: Guild Information
+    description: Retrieve guild (clan) details by guild ID
 
 paths:
   /info:
@@ -279,6 +336,11 @@ paths:
         - Top placement counts (top 3, top 5, top 10)
         
         Statistics represent the player's all-time career performance in each mode.
+
+        **Quota cost**: each request to this endpoint consumes **2 units** of monthly quota
+        (reported in the `X-Quota-Cost` header). Burst limits still count it as 1.
+
+        **Region**: optional, defaults to `ind` when omitted.
       operationId: getPlayerStats
       parameters:
         - $ref: '#/components/parameters/RegionParam'
@@ -295,6 +357,10 @@ paths:
               $ref: '#/components/headers/X-RateLimit-Remaining'
             X-RateLimit-Reset:
               $ref: '#/components/headers/X-RateLimit-Reset'
+            X-Quota-Cost:
+              $ref: '#/components/headers/X-Quota-Cost'
+            X-Cache:
+              $ref: '#/components/headers/X-Cache'
           content:
             application/json:
               schema:
@@ -309,6 +375,60 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /guild:
+    get:
+      tags:
+        - Guild Information
+      summary: Get Guild Information
+      description: |
+        Retrieves guild (clan) information. Query parameters other than the API key are
+        forwarded to the data provider.
+
+        **Region**: optional, defaults to `br` when omitted.
+      operationId: getGuildInfo
+      parameters:
+        - name: region
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [sg, ind, br]
+            default: br
+          description: Region code of the guild
+        - $ref: '#/components/parameters/ApiKeyHeader'
+        - $ref: '#/components/parameters/ApiKeyQuery'
+      responses:
+        '200':
+          description: Guild information successfully retrieved
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-Cache:
+              $ref: '#/components/headers/X-Cache'
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
   /image:
     get:
@@ -444,6 +564,9 @@ paths:
       summary: Check Player Ban Status
       description: |
         Checks if a Free Fire player account is currently banned or has an active ban period.
+
+        **Note**: the upstream check is currently always performed with `lang=en`, so the
+        `lang` parameter does not change the response language yet.
       operationId: checkPlayerBanStatus
       parameters:
         - $ref: '#/components/parameters/UIDParam'
@@ -500,12 +623,16 @@ components:
     RegionParam:
       name: region
       in: query
-      required: true
+      required: false
       schema:
         type: string
         enum: [sg, ind, br]
       description: |
-        The region code for the player's account:
+        The region code for the player's account. Recommended on every request. When omitted,
+        `/stats` and `/wishlist` default to `ind`, `/craftland` defaults to `sg`, and `/guild`
+        defaults to `br`; `/info` forwards it to the data provider as-is.
+
+        Region codes:
         - `sg`: Singapore region (covers SG, ID, ME, VN, TH, CIS, EU, TW, MY, PK, BD)
         - `ind`: India region (covers IND only)
         - `br`: Brazil region (covers BR, US, NA, LATAM)
@@ -563,6 +690,19 @@ components:
       schema:
         type: integer
       example: 1735689600
+
+    X-Quota-Cost:
+      description: Monthly quota units consumed by this request (1 for most endpoints, 2 for /stats)
+      schema:
+        type: integer
+      example: 1
+
+    X-Cache:
+      description: Whether the response was served from the server-side cache
+      schema:
+        type: string
+        enum: [HIT, MISS]
+      example: MISS
 
   schemas:
     PlayerInfoResponse:
@@ -762,7 +902,19 @@ components:
           type: string
         code:
           type: string
+          description: |
+            Error code. One of: `AUTH_001` (missing key), `AUTH_002` (invalid key),
+            `AUTH_003` (inactive key), `AUTH_004` (expired key), `RATE_001` (rate limit),
+            `QUOTA_001` (monthly quota), `PARAM_001` (missing parameter), `RES_001` (not found),
+            `SYS_001` (internal error), `SYS_002` (service unavailable), `SYS_003` (upstream
+            timeout), or `FW_001`-`FW_004` (edge firewall).
           example: AUTH_001
+        requestId:
+          type: string
+          description: Request identifier, included on 5xx errors
+        retryAfter:
+          type: integer
+          description: Seconds to wait before retrying, when applicable
         documentation:
           type: string
           format: uri
@@ -780,21 +932,69 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
 
     Unauthorized:
-      description: Unauthorized - Invalid or missing API key
+      description: >-
+        Unauthorized - missing key (`AUTH_001`), or invalid key (`AUTH_002`). Keys must start
+        with `ffc_` and be at least 30 characters.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
 
     Forbidden:
-      description: Forbidden - API key doesn't have access
+      description: >-
+        Forbidden. Two causes: (1) an edge firewall block, where the error body `code`
+        starts with `FW_` (e.g. `FW_001` missing/short User-Agent, `FW_002` blocked
+        User-Agent pattern) — set a valid custom `User-Agent` header; or (2) the API key is
+        inactive (`AUTH_003`) or expired (`AUTH_004`). Not caused by the region.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
 
     TooManyRequests:
-      description: Too many requests - Rate limit exceeded
+      description: >-
+        Too many requests. The body `code` is `RATE_001` (per-minute, per-hour, or per-IP
+        limit; check `window` and `type`), `QUOTA_001` (monthly quota exhausted; see `used`,
+        `limit`, `requestCost`, `resetDate`), or `FW_004` (edge firewall limit; honor
+        `Retry-After`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    BadGateway:
+      description: >-
+        The data provider failed or returned a non-JSON response (`SYS_002`). Includes
+        `upstreamStatus` when available. Safe to retry; `Retry-After` is 5 seconds on
+        connection failures.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    GatewayTimeout:
+      description: >-
+        The data provider did not respond within 8 seconds (`SYS_003`). Retry after the
+        `Retry-After` interval (5 seconds).
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ServiceUnavailable:
+      description: Service temporarily unavailable (`SYS_002`), for example the backend could not initialize. Retry after `Retry-After` (30 seconds).
+      headers:
+        Retry-After:
+          schema:
+            type: integer
       content:
         application/json:
           schema:
